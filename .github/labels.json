@@ -1,0 +1,15 @@
+[
+  { "name": "type:feature", "color": "1D76DB", "description": "New product or application capability" },
+  { "name": "type:fix", "color": "D73A4A", "description": "Correction of an observed defect" },
+  { "name": "type:maintenance", "color": "6A737D", "description": "Foundation, configuration, dependency, or tooling work" },
+  { "name": "type:docs", "color": "0075CA", "description": "Documentation or recorded evidence" },
+  { "name": "area:foundation", "color": "BFD4F2", "description": "Scaffold, local environment, repository conventions, and CI" },
+  { "name": "area:identity", "color": "D4C5F9", "description": "Sessions, ownership, and customer mapping" },
+  { "name": "area:data", "color": "C2E0C6", "description": "PostgreSQL, migrations, and persistence" },
+  { "name": "area:planning", "color": "0E8A16", "description": "Commitments, buffer, allowance, and revisions" },
+  { "name": "area:gateway", "color": "0052CC", "description": "True Markets contracts, accounts, catalog, balances, and signing" },
+  { "name": "area:orders", "color": "5319E7", "description": "Preparation, approval, execution, recovery, and receipts" },
+  { "name": "area:experience", "color": "FBCA04", "description": "Interface, accessibility, and sample journey" },
+  { "name": "area:release", "color": "006B75", "description": "Deployment, operational proof, and submission artifacts" },
+  { "name": "blocked", "color": "B60205", "description": "Waiting on a named decision, prerequisite, or external access" }
+]
