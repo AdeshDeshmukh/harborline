@@ -20,7 +20,11 @@ financial path that users can invoke.
 ## Branches and commits
 
 Start independent branches from current `main` after prerequisites merge. Use
-`codex/hl-NN-short-purpose`; the existing `codex/foundation` branch covers HL-01.
+`<type>/hl-NN-short-purpose`, such as `feat/hl-14-allowance` or
+`docs/hl-02-project-documentation`. HL-01 uses `chore/hl-01-foundation`.
+Use purpose-based names without tool or assistant branding in branch names,
+commit messages/trailers, or PR titles and descriptions. Preserve accurate
+authorship and any required disclosures.
 Wait for dependencies where practical. If a stacked branch is necessary, state
 its base and dependencies in the PR and update the base before merging.
 
@@ -84,8 +88,8 @@ approved eligibility, asset/network, amount, signing, recovery, and return steps
 
 ## Initial review sequence
 
-The current uncommitted workspace contains several planned slices. Preserve their
-boundaries when preparing history:
+The initial review stack contains the following slices. Preserve their
+boundaries when preparing changes:
 
 | Slice | Intended file scope |
 | --- | --- |
