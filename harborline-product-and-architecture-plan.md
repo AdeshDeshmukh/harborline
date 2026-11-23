@@ -8,7 +8,7 @@
 
 **Proposed stack:** TypeScript, Next.js App Router on the Node runtime, Tailwind CSS, accessible component primitives, Supabase Auth and PostgreSQL, Drizzle with PostgreSQL transactions, decimal.js, Vitest, Playwright, Vercel deployment, and Supabase Cron for periodic reconciliation. Pin compatible stable versions during setup; do not use unpinned dependencies in the submitted lockfile.
 
-**Status:** Product planning and a local application baseline exist. The baseline is uncommitted on `codex/foundation`, based on the remote license commit; lint, typecheck, and a webpack production build passed during setup. Authentication, persistence, Gateway integration, deployment, and live proof remain unimplemented. Section 18 defines the detailed PR delivery roadmap. Stack, scope, budgets, and time estimates below are engineering recommendations, not approved infrastructure purchases.
+**Status:** Product planning and the local application baseline are verified. HL-01–03 are under PR review; their PR descriptions carry current publication state. Authentication, persistence, Gateway integration, deployment, and live proof remain unimplemented. Section 18 defines the detailed PR roadmap. Stack, scope, budgets, and time estimates are engineering recommendations, not approved infrastructure purchases.
 
 **Prepared:** 23 November 2026. Research clock: approximately 10:54 UTC / 16:24 IST. **Deadline:** 29 November 2026, 23:59 UTC = **30 November 2026, 05:29 IST**. About 6 days 13 hours remained at that check. Internal submission target: **29 November, 18:00 IST**, leaving about 11½ hours of contingency.
 
@@ -968,12 +968,12 @@ This section is the delivery breakdown of sections 13–14, not an expansion of 
 - `HL-01` through `HL-32` are stable roadmap IDs, not GitHub issue or PR numbers. Record actual links after creation; do not invent them.
 - GitHub issue creation is selective: use issues for unresolved questions, bugs, externally blocked work, or an outcome needing discussion. Straightforward slices can reference this roadmap directly.
 - Start each new independent branch from current `main` after its prerequisites merge. For dependent work, prefer waiting for the prerequisite; document any deliberately stacked branch and retarget it before merge.
-- Suggested branches below use `codex/hl-NN-short-purpose`. The existing `codex/foundation` can carry HL-01; it does not need to be renamed for appearance.
+- Suggested branches below use `<type>/hl-NN-short-purpose`. The existing `chore/hl-01-foundation` can carry HL-01; branch names must describe purpose without tool or assistant branding.
 - Include implementation, relevant tests, and documentation in the same PR. Avoid a later PR whose only purpose is to add tests omitted from the original feature.
 - Every intermediate merge must lint, typecheck, and build. Unfinished financial paths stay inaccessible; fixtures may exercise them without enabling real execution.
 - Make coherent commits with titles such as `feat(planning): calculate investment allowance`. Do not create a commit per file or fabricate historical development steps.
 - Commits, pushes, PR creation, merges, paid provisioning, and financial experiments require the authority established for that action. A roadmap entry is not authorization to perform it.
-- All 32 entries currently have **no GitHub PR**. HL-01–03 are locally verified and remain uncommitted. HL-04 onward are planned. Local verification is not a published or merged PR. Finish HL-03 before preparing the initial commits/PRs, as requested; retain separate file scopes for HL-01, HL-02 and HL-03.
+- HL-01–03 have been published for review; the initial PRs are being replaced under the neutral branch convention. Record final replacement links when verified. HL-04 onward remain planned. Local verification and opening a PR are not a merge.
 - Update status only from evidence: `planned → in progress → locally verified → PR open → merged`. Add `blocked` with the exact dependency when necessary. A merged code PR does not prove live integration.
 
 ### 18.2 Labels and milestones
@@ -1017,15 +1017,15 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-01 — `chore: establish application foundation`
 
-- **Branch / labels:** existing `codex/foundation`; `type:maintenance`, `area:foundation`.
-- **Prerequisite:** existing remote license commit. **Status:** locally reviewed and verified, uncommitted. Tailwind production compilation was corrected through PostCSS; development and build use webpack. Direct dependency versions are pinned, optional caching flags removed, and the placeholder explicitly says account access/trading are unavailable. Production page visually inspected; lint, typecheck, dependency peer check, frozen offline install, and build verified locally on Node 26.5.0. Node 24 CI verification remains HL-04; no commit, PR, or deployment exists for this slice.
+- **Branch / labels:** existing `chore/hl-01-foundation`; `type:maintenance`, `area:foundation`.
+- **Prerequisite:** existing remote license commit. **Status:** locally reviewed and verified, prepared for PR review. Tailwind production compilation was corrected through PostCSS; development and build use webpack. Direct dependency versions are pinned, optional caching flags removed, and the placeholder explicitly says account access/trading are unavailable. Production page visually inspected; lint, typecheck, dependency peer check, frozen offline install, and build verified locally on Node 26.5.0. Node 24 CI verification remains HL-04; no commit, PR, or deployment exists for this slice.
 - **Scope:** `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `.nvmrc`, Next/TypeScript/ESLint configuration, `src/app/`, and baseline ignore rules. Retain the existing license. Use honest foundation-stage copy, without presenting an operational pilot as available.
 - **Boundary:** runnable application shell; no auth, database, financial endpoint, or fabricated working feature.
 - **Acceptance:** clean dependency installation from lockfile, `pnpm lint`, `pnpm typecheck`, `pnpm build`. Record the webpack choice and the local Node version used; confirm the target Node 24 runtime in CI.
 
 #### HL-02 — `docs: document local setup and architecture`
 
-- **Branch / labels:** `codex/hl-02-project-documentation`; `type:docs`, `area:foundation`.
+- **Branch / labels:** `docs/hl-02-project-documentation`; `type:docs`, `area:foundation`.
 - **Prerequisite:** HL-01. **Status:** local documentation reviewed; README now distinguishes installed/planned behavior, documents a frozen install and fresh-checkout type generation, and explains that the static page needs no credentials. `.env.example` is labeled as proposed configuration rather than active controls. Foundation decisions and revisit triggers are recorded in section 7.4. Uncommitted; isolated setup verification recorded in the local HL-02 review.
 - **Scope:** README, `.env.example`, this plan, and the system design summary. Explain installed versus planned dependencies, local commands, current limitations, and the next phase. Preserve the book summary's actual coverage limits.
 - **Boundary:** public setup and architecture documentation; no real secrets and no claim that integration is complete.
@@ -1033,16 +1033,16 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-03 — `chore: define contribution and pull request conventions`
 
-- **Branch / labels:** `codex/hl-03-review-conventions`; `type:maintenance`, `area:foundation`.
+- **Branch / labels:** `chore/hl-03-review-conventions`; `type:maintenance`, `area:foundation`.
 - **Prerequisite:** HL-01; reference HL-02 when merged.
-- **Status:** locally implemented and reviewed, uncommitted. Template sections exercised against the actual scaffold and a clearly hypothetical financial-change description; all 13 catalog labels/colors match section 18.2, local document links and Markdown fences checked. Remote labels and PRs remain uncreated.
+- **Status:** locally implemented and reviewed, prepared for PR review. Template sections exercised against the actual scaffold and a clearly hypothetical financial-change description; all 13 catalog labels/colors match section 18.2, local document links and Markdown fences checked. Remote labels and PRs remain uncreated.
 - **Scope:** `.github/pull_request_template.md`, concise `CONTRIBUTING.md`, and a declarative label catalog at `.github/labels.json`. Document branch/commit conventions, roadmap IDs, relevant evidence, and when issues help.
 - **Boundary:** local configuration and guidance. A catalog file alone does not create remote labels or automate synchronization.
 - **Acceptance:** render the template; use it to draft a simple scaffold change and an order change. Both must be understandable without irrelevant mandatory sections. Check label names/colors against section 18.2.
 
 #### HL-04 — `ci: verify the application baseline`
 
-- **Branch / labels:** `codex/hl-04-baseline-ci`; `type:maintenance`, `area:foundation`.
+- **Branch / labels:** `ci/hl-04-baseline-ci`; `type:maintenance`, `area:foundation`.
 - **Prerequisite:** HL-01. HL-03 may proceed independently.
 - **Scope:** `.github/workflows/checks.yml`; install the declared Node/pnpm versions, install with the frozen lockfile, then lint, typecheck, and build. Use minimal read permissions and cancel superseded runs.
 - **Boundary:** no deployment, production migration, live credentials, or real provider mutations in CI.
@@ -1052,7 +1052,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-05 — `docs: record submission requirements and review access`
 
-- **Branch / labels:** `codex/hl-05-submission-requirements`; `type:docs`, `area:release`.
+- **Branch / labels:** `docs/hl-05-submission-requirements`; `type:docs`, `area:release`.
 - **Prerequisite:** access to the authenticated DevSpot form; initial notes can precede access.
 - **Scope:** `docs/submission.md`; record required versus recommended fields, deadline/timezone, reviewer access, repository access, video constraints if any, and dated source links.
 - **Boundary:** document unresolved form requirements explicitly. Do not turn proposed PDF language into a confirmed portal requirement.
@@ -1060,7 +1060,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-06 — `docs: establish Gateway feasibility decisions`
 
-- **Branch / labels:** `codex/hl-06-gateway-feasibility`; `type:docs`, `area:gateway`.
+- **Branch / labels:** `docs/hl-06-gateway-feasibility`; `type:docs`, `area:gateway`.
 - **Prerequisite:** provider access/guidance where documentation is insufficient; independent of UI work.
 - **Scope:** `docs/api-contracts.md`, `docs/decisions.md`, initial `docs/evidence/integration-proof.md`. Resolve or record organization access, end-user geography, onboarding, sandbox discrepancy, chosen route, bounded debit/fees, signer recovery, settlement evidence, and return path.
 - **Boundary:** evidence-backed decision record; pending answers are blockers for the affected live behavior, not guessed API guarantees.
@@ -1068,7 +1068,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-07 — `chore(gateway): verify the public asset route`
 
-- **Branch / labels:** `codex/hl-07-provider-read-check`; `type:maintenance`, `area:gateway`.
+- **Branch / labels:** `chore/hl-07-provider-read-check`; `type:maintenance`, `area:gateway`.
 - **Prerequisite:** HL-01 and the public-read portion of HL-06.
 - **Scope:** `scripts/verify-readonly-provider.ts`, sanitized metadata fixtures, contract checks. Read catalog/restrictions from the intended deployment environment and identify the exact asset/network/venue candidate.
 - **Boundary:** no customer creation, funding, signing, order preparation, or execution. Availability from a server IP does not establish user eligibility.
@@ -1078,7 +1078,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-08 — `feat(gateway): establish the server provider client`
 
-- **Branch / labels:** `codex/hl-08-gateway-client`; `type:feature`, `area:gateway`.
+- **Branch / labels:** `feat/hl-08-gateway-client`; `type:feature`, `area:gateway`.
 - **Prerequisite:** HL-01, HL-06's authentication contract.
 - **Scope:** `src/server/env.ts`, `src/integrations/truemarkets/client.server.ts`, `auth.server.ts`, `errors.ts`; add server-only enforcement, validated configuration, organization authentication, token lifecycle, bounded read retries, timeouts, redacted errors.
 - **Boundary:** no generic retry of mutations; missing live configuration cannot prevent the isolated sample from running.
@@ -1086,7 +1086,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-09 — `feat(data): establish private account persistence`
 
-- **Branch / labels:** `codex/hl-09-account-schema`; `type:feature`, `area:data`.
+- **Branch / labels:** `feat/hl-09-account-schema`; `type:feature`, `area:data`.
 - **Prerequisite:** HL-01.
 - **Scope:** `src/server/db.ts`, `src/server/db/schema.ts`, Drizzle config and migration 0001 foundation; profiles, account mapping, private signer storage boundary, indexes/uniqueness, restricted roles and ownership policy.
 - **Boundary:** no plaintext signer material, public database writes, or migrations against a real environment without selecting it explicitly.
@@ -1094,7 +1094,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-10 — `feat(identity): add verified sign-in and sign-out`
 
-- **Branch / labels:** `codex/hl-10-authentication`; `type:feature`, `area:identity`.
+- **Branch / labels:** `feat/hl-10-authentication`; `type:feature`, `area:identity`.
 - **Prerequisite:** HL-01; configured Supabase environment for deployed verification.
 - **Scope:** `features/identity/session.server.ts`, sign-in page, callback route, verified session handling and sign-out; use current provider guidance for cookies and callback validation.
 - **Boundary:** identity only; sign-in does not provision a provider customer or enable trading.
@@ -1102,7 +1102,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-11 — `feat(identity): enforce account ownership`
 
-- **Branch / labels:** `codex/hl-11-owner-context`; `type:feature`, `area:identity`, `area:data`.
+- **Branch / labels:** `feat/hl-11-owner-context`; `type:feature`, `area:identity`, `area:data`.
 - **Prerequisite:** HL-09, HL-10.
 - **Scope:** `features/identity/access.server.ts`, account repository and protected pilot layout. Implement `requireOwnerContext` and atomic local account bootstrap; derive ownership from session, never caller-supplied owner/provider IDs.
 - **Boundary:** establishes local identity mapping without an external provisioning side effect.
@@ -1110,7 +1110,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-12 — `feat(accounts): provision stable Gateway customers`
 
-- **Branch / labels:** `codex/hl-12-gateway-accounts`; `type:feature`, `area:identity`, `area:gateway`.
+- **Branch / labels:** `feat/hl-12-gateway-accounts`; `type:feature`, `area:identity`, `area:gateway`.
 - **Prerequisite:** HL-08, HL-11, provider-confirmed signer/recovery and eligibility contracts in HL-06.
 - **Scope:** `accounts/provision.server.ts`, `integrations/truemarkets/accounts.server.ts`, `key-store.server.ts`, `/api/account/provision`, setup screen; persist external identity and original public key, encrypted signer, provisioning state and wallet metadata.
 - **Boundary:** account provisioning remains controlled; no funding or trading. Never silently replace the original signer on retry or recovery.
@@ -1120,7 +1120,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-13 — `feat(planning): validate precise monetary inputs`
 
-- **Branch / labels:** `codex/hl-13-money-types`; `type:feature`, `area:planning`.
+- **Branch / labels:** `feat/hl-13-money-types`; `type:feature`, `area:planning`.
 - **Prerequisite:** HL-01; independent of provider access.
 - **Scope:** planning `types.ts`, `money.ts`, `validation.ts`; add decimal.js, validated bounded decimal strings, amount and date validation, display rounding rules.
 - **Boundary:** no floating-point authorization math or guessed fee behavior.
@@ -1128,7 +1128,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-14 — `feat(planning): calculate investment allowance`
 
-- **Branch / labels:** `codex/hl-14-allowance`; `type:feature`, `area:planning`.
+- **Branch / labels:** `feat/hl-14-allowance`; `type:feature`, `area:planning`.
 - **Prerequisite:** HL-13.
 - **Scope:** pure `calculate-allowance.ts` implementing section 5's `AllowanceInput` and `AllowanceResult`; horizon inclusion, overdue commitments, paid exclusions, buffer, shortfall and formula version.
 - **Boundary:** declared commitments are planning inputs; they do not segregate or lock real funds.
@@ -1136,7 +1136,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-15 — `feat(planning): persist commitments and policy`
 
-- **Branch / labels:** `codex/hl-15-planning-storage`; `type:feature`, `area:planning`, `area:data`.
+- **Branch / labels:** `feat/hl-15-planning-storage`; `type:feature`, `area:planning`, `area:data`.
 - **Prerequisite:** HL-09, HL-11, HL-13.
 - **Scope:** planning migration, repository/service, `/api/plan`, `/api/commitments`; CRUD for dated commitments and explicit horizon/buffer, owner-scoped validation and optimistic revision writes.
 - **Boundary:** no bank connection, automatic recurring-bill detection, or bill payment.
@@ -1144,7 +1144,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-16 — `feat(planning): version immutable calculation snapshots`
 
-- **Branch / labels:** `codex/hl-16-plan-revisions`; `type:feature`, `area:planning`, `area:data`.
+- **Branch / labels:** `feat/hl-16-plan-revisions`; `type:feature`, `area:planning`, `area:data`.
 - **Prerequisite:** HL-14, HL-15.
 - **Scope:** calculation snapshots tied to balance evidence and policy revision; transaction rules for revision changes. Define invalidation contract consumed by HL-21/23; exercise it now using stored snapshot fixtures.
 - **Boundary:** simulated snapshots are labeled; no fake live balances. Final stale-order rejection is verified when real review/approval modules arrive.
@@ -1152,7 +1152,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-17 — `feat(planning): explain cash commitments and allowance`
 
-- **Branch / labels:** `codex/hl-17-planning-interface`; `type:feature`, `area:planning`, `area:experience`.
+- **Branch / labels:** `feat/hl-17-planning-interface`; `type:feature`, `area:planning`, `area:experience`.
 - **Prerequisite:** HL-14–16.
 - **Scope:** commitment form, planning page, overview and allowance breakdown; show included commitments, horizon, buffer, shortfall, and before/after hypothetical amount using shared domain results. Show a visible freshness/source label.
 - **Boundary:** no independent authoritative browser formula or implication that the result is a suitability guarantee.
@@ -1162,7 +1162,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-18 — `feat(gateway): normalize eligible assets and balances`
 
-- **Branch / labels:** `codex/hl-18-assets-balances`; `type:feature`, `area:gateway`.
+- **Branch / labels:** `feat/hl-18-assets-balances`; `type:feature`, `area:gateway`.
 - **Prerequisite:** HL-07, HL-08, HL-12; geography method resolved in HL-06.
 - **Scope:** catalog/balance/eligibility adapters, schemas, `/api/assets`, `/api/account/balance`, funding instructions and freshness handling. Connect owned confirmed balances to planning refresh and snapshots.
 - **Boundary:** one verified network/USDC identity; never combine chains, count pending income, or subtract provider holds twice. Funding instructions do not authorize a deposit.
@@ -1170,7 +1170,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-19 — `feat(gateway): validate quotes and maximum debit`
 
-- **Branch / labels:** `codex/hl-19-quote-contract`; `type:feature`, `area:gateway`, `area:orders`.
+- **Branch / labels:** `feat/hl-19-quote-contract`; `type:feature`, `area:gateway`, `area:orders`.
 - **Prerequisite:** HL-08, HL-13, HL-18 and verified debit/fee semantics from HL-06.
 - **Scope:** quote schemas/normalization and contract fixtures; distinguish nonbinding preview from executable terms; normalize fee denomination and enforceable maximum debit with expiry evidence.
 - **Boundary:** no invented slippage parameter or assumed fee inclusion. Unknown bounds return a blocked result.
@@ -1178,7 +1178,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-20 — `feat(orders): persist order lifecycle and account serialization`
 
-- **Branch / labels:** `codex/hl-20-order-storage`; `type:feature`, `area:orders`, `area:data`.
+- **Branch / labels:** `feat/hl-20-order-storage`; `type:feature`, `area:orders`, `area:data`.
 - **Prerequisite:** HL-09, HL-11, HL-16.
 - **Scope:** order/audit migration, intent repository, lifecycle types, account operation slot, request-key uniqueness and compare-and-set helpers. Define preparation generations and cleanup predicates from section 8.
 - **Boundary:** schema and tested local transitions; no provider execution. Add foreign keys/constraints in an order that makes migrations independently runnable.
@@ -1186,7 +1186,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-21 — `feat(orders): prepare durable investment reviews`
 
-- **Branch / labels:** `codex/hl-21-order-preparation`; `type:feature`, `area:orders`, `area:gateway`.
+- **Branch / labels:** `feat/hl-21-order-preparation`; `type:feature`, `area:orders`, `area:gateway`.
 - **Prerequisite:** HL-16, HL-18–20; exact forced-DeFi create behavior verified before real calls.
 - **Scope:** `prepare.server.ts`, terms hashing, provider order adapter and investment-review endpoint; acquire slot, fetch fresh owned inputs, prepare forced-DeFi order, persist immutable terms and payloads, fence late responses.
 - **Boundary:** no signature or execute call. Unexpected immediate execution becomes an incident/reconciliation record rather than normal review.
@@ -1194,7 +1194,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-22 — `feat(orders): present exact investment terms`
 
-- **Branch / labels:** `codex/hl-22-review-interface`; `type:feature`, `area:orders`, `area:experience`.
+- **Branch / labels:** `feat/hl-22-review-interface`; `type:feature`, `area:orders`, `area:experience`.
 - **Prerequisite:** HL-17, HL-19, HL-21.
 - **Scope:** asset detail and review pages; amount, tokenized identity, chain, fee, maximum debit, post-purchase cash explanation, expiry and changed-plan states.
 - **Boundary:** approval stays unavailable until HL-24 completes the execution boundary. No dead button presented as a working purchase.
@@ -1204,7 +1204,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-23 — `feat(orders): enforce explicit single approval`
 
-- **Branch / labels:** `codex/hl-23-approval-state`; `type:feature`, `area:orders`.
+- **Branch / labels:** `feat/hl-23-approval-state`; `type:feature`, `area:orders`.
 - **Prerequisite:** HL-16, HL-20–21.
 - **Scope:** state machine, immutable approval record and atomic review-to-submitting transition, freshness/ownership/terms/revision/live-control checks; tested against a fixture executor boundary.
 - **Boundary:** UI live execution remains disabled. Transition approval never accepts arbitrary client payloads or caller-supplied owner IDs.
@@ -1212,7 +1212,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-24 — `feat(gateway): sign and execute an approved order once`
 
-- **Branch / labels:** `codex/hl-24-signed-execution`; `type:feature`, `area:gateway`, `area:orders`.
+- **Branch / labels:** `feat/hl-24-signed-execution`; `type:feature`, `area:gateway`, `area:orders`.
 - **Prerequisite:** HL-08, HL-12, HL-19, HL-23; approved pilot controls, signer contract and recovery decisions.
 - **Scope:** `signer.server.ts`, approval orchestration and endpoint; sign only stored owned provider payloads in the documented order, execute once after durable approval, persist response or uncertainty. Connect the review action behind disabled-by-default pilot controls.
 - **Boundary:** retain the operation slot on uncertainty; no automatic retry of an ambiguous mutation. This PR's fixture verification spends no money.
@@ -1220,7 +1220,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-25 — `feat(orders): recover uncertain execution outcomes`
 
-- **Branch / labels:** `codex/hl-25-order-recovery`; `type:feature`, `area:orders`.
+- **Branch / labels:** `feat/hl-25-order-recovery`; `type:feature`, `area:orders`.
 - **Prerequisite:** HL-24.
 - **Scope:** read-only `reconcileOrder`, provider status normalization and durable recovery after process/browser restart; handle delayed, failed, complete, partial, and already-submitted observations.
 - **Boundary:** lack of evidence never becomes success/failure by assumption; recovery never resubmits an execute request.
@@ -1228,7 +1228,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-26 — `feat(orders): schedule reconciliation and verify settlement`
 
-- **Branch / labels:** `codex/hl-26-settlement-workers`; `type:feature`, `area:orders`, `area:data`.
+- **Branch / labels:** `feat/hl-26-settlement-workers`; `type:feature`, `area:orders`, `area:data`.
 - **Prerequisite:** HL-25 and the settlement evidence decision from HL-06.
 - **Scope:** due-work leasing, internal secret-protected route, scheduled read-only polling, backoff, settlement evidence and operator manual-reconciliation command; configure cron only in the intended environment.
 - **Boundary:** automatic slot release stays off until the provider evidence contract is proven; elapsed time or two equal balances alone do not prove settlement. Manual clearance is audited and cannot execute trades.
@@ -1236,7 +1236,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-27 — `feat(orders): show persistent status and receipts`
 
-- **Branch / labels:** `codex/hl-27-status-receipts`; `type:feature`, `area:orders`, `area:experience`.
+- **Branch / labels:** `feat/hl-27-status-receipts`; `type:feature`, `area:orders`, `area:experience`.
 - **Prerequisite:** HL-22, HL-25–26.
 - **Scope:** owner-scoped activity/status endpoints and pages; receipt joins approved planning revision with actual fill/fee evidence and timestamps. Clearly explain pending, unknown, and balance-verification-required outcomes.
 - **Boundary:** no estimated quantities presented as fills, fictional savings, or organization-wide feed exposed to a customer.
@@ -1246,7 +1246,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-28 — `feat(pilot): prepare sell-back and fund-return operations`
 
-- **Branch / labels:** `codex/hl-28-pilot-exit`; `type:feature`, `area:orders`, `area:release`.
+- **Branch / labels:** `feat/hl-28-pilot-exit`; `type:feature`, `area:orders`, `area:release`.
 - **Prerequisite:** HL-18, HL-21, HL-24–27 and verified provider return/recovery contract.
 - **Scope:** operator-assisted sell review using base units and fresh owned holdings; shared approval/account serialization; `docs/operations.md` for signer recovery, disabling new trades, reconciliation and the verified fund-return procedure.
 - **Boundary:** zero buying allowance does not block a sale; do not add a public transfer API by assumption. Any implemented transfer requires its own bounded review, destination authorization and tests, split into an additional PR if substantial.
@@ -1254,7 +1254,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-29 — `feat(demo): provide the public sample journey`
 
-- **Branch / labels:** `codex/hl-29-sample-journey`; `type:feature`, `area:experience`.
+- **Branch / labels:** `feat/hl-29-sample-journey`; `type:feature`, `area:experience`.
 - **Prerequisite:** HL-17, HL-22, HL-27; fixture scenario work may start earlier without pretending its later screens work.
 - **Scope:** separate server-fixed fixture adapter and `/demo` journey; positive/zero allowance, commitment change, expired/rejected quote, and uncertain-order scenarios. Public reviewers need no deposit or live permissions.
 - **Boundary:** sample credentials/data cannot resolve into the live adapter; sample receipts are visibly labeled throughout.
@@ -1262,7 +1262,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-30 — `fix(experience): resolve observed usability and accessibility gaps`
 
-- **Branch / labels:** `codex/hl-30-usability`; `type:fix`, `area:experience`.
+- **Branch / labels:** `fix/hl-30-usability`; `type:fix`, `area:experience`.
 - **Prerequisite:** HL-29 and the integrated pilot journey.
 - **Scope:** short user checks and recorded observations; fix concrete navigation, copy, mobile, keyboard, loading/error and focus problems. Use `type:feature` instead if the actual change adds a capability rather than fixing a defect.
 - **Boundary:** no scope expansion into advice, automation, charts or rewards to compensate for unclear core behavior.
@@ -1272,7 +1272,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-31 — `docs: record controlled integration and deployment evidence`
 
-- **Branch / labels:** `codex/hl-31-integration-evidence`; `type:docs`, `area:gateway`, `area:release`.
+- **Branch / labels:** `docs/hl-31-integration-evidence`; `type:docs`, `area:gateway`, `area:release`.
 - **Prerequisite:** HL-06 access/eligibility/recovery gates, HL-28 and a separately approved exact live experiment. Deployment must be explicitly authorized and use the intended environment.
 - **Scope:** sanitized `docs/evidence/integration-proof.md`, operations and deployment evidence; small approved buy, separately approved sell-back/return verification, provider fill/fee/balance references, restart persistence and declared pilot limits. Record actual environment separation and cron behavior.
 - **Boundary:** real trades are deliberate experiments, never CI. Public review accounts have no live execution authority. Documentation cannot convert a fixture into real proof.
@@ -1280,7 +1280,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 #### HL-32 — `docs: prepare the reviewed submission package`
 
-- **Branch / labels:** `codex/hl-32-release-package`; `type:docs`, `area:release`.
+- **Branch / labels:** `docs/hl-32-release-package`; `type:docs`, `area:release`.
 - **Prerequisite:** HL-05, HL-30–31; any remaining failures resolved by focused fix PRs.
 - **Scope:** final README/setup, `docs/submission.md`, `docs/demo-script.md`, source/reuse/AI disclosures, screenshots and video links, evidence index, known limits and release checklist. Record checks for migrations, environment isolation, cron health and a backup/restore exercise on disposable data.
 - **Boundary:** a merged release PR does not mean the DevSpot form is submitted. Video length/requirements follow the actual form audit; the suggested 2–3 minutes remains a recommendation until verified.
