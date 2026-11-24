@@ -3,9 +3,14 @@ import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { sql } from "drizzle-orm";
 vi.mock("server-only", () => ({}));
+vi.mock("../../src/features/identity/session.server", () => ({ getVerifiedSession: vi.fn() }));
 import { createDatabase } from "../../src/server/db";
+import * as databaseModule from "../../src/server/db";
+import { getVerifiedSession } from "../../src/features/identity/session.server";
+import { requireOwnerContext } from "../../src/features/identity/access.server";
 import { profiles } from "../../src/server/db/schema";
 import { runMigrations, validateMigrationTarget } from "../../scripts/migrate-db.mjs";
+import { bootstrapAccount } from "../../src/features/accounts/repository.server";
 
 const connectionString = process.env.TEST_DATABASE_URL;
 if (!connectionString || process.env.TEST_DATABASE_DISPOSABLE !== "true") {
@@ -159,4 +164,89 @@ test("the server DB wrapper scopes Drizzle transactions and rolls back on callba
       .toEqual([{ timezone: "UTC" }]);
     expect(await db.withOwner(b, async tx => tx.select({ id: profiles.authUserId }).from(profiles))).toEqual([{ id: b }]);
   } finally { await db.close(); }
+});
+
+function runtimeDatabase() {
+  const url = new URL(connectionString!);
+  url.username = "harborline_test_runtime";
+  url.password = "test-only-runtime";
+  return createDatabase(url.toString());
+}
+const identity = (id = randomUUID()) => ({ id, email: "builder@example.invalid" });
+
+test("first verified login atomically creates a disabled local profile and unprovisioned account", async () => {
+  const db = runtimeDatabase(), user = identity();
+  try {
+    const account = await bootstrapAccount(user, db);
+    expect(account).toMatchObject({ ownerId: user.id, providerUserId: null,
+      provisioningState: "UNPROVISIONED", pilotEnabled: false, eligibilityStatus: "UNKNOWN", timezone: "UTC" });
+    expect(account.accountId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(account.externalRefId).toMatch(/^hl_[0-9a-f-]{36}$/);
+    expect((await admin.query("SELECT public_key, wallet_addresses FROM harborline.gateway_accounts WHERE id=$1", [account.accountId])).rows)
+      .toEqual([{ public_key: null, wallet_addresses: {} }]);
+    expect((await admin.query("SELECT count(*)::int AS n FROM harborline_private.signer_secrets WHERE account_id=$1", [account.accountId])).rows)
+      .toEqual([{ n: 0 }]);
+  } finally { await db.close(); }
+});
+
+test("eight concurrent first logins converge on one durable account and external reference", async () => {
+  const db = runtimeDatabase(), user = identity();
+  try {
+    const accounts = await Promise.all(Array.from({ length: 8 }, () => bootstrapAccount(user, db)));
+    expect(accounts.every(account => JSON.stringify(account) === JSON.stringify(accounts[0]))).toBe(true);
+    expect(await bootstrapAccount(user, db)).toEqual(accounts[0]);
+    expect((await admin.query("SELECT count(*)::int AS n FROM harborline.profiles WHERE auth_user_id=$1", [user.id])).rows).toEqual([{ n: 1 }]);
+    expect((await admin.query("SELECT count(*)::int AS n FROM harborline.gateway_accounts WHERE owner_id=$1", [user.id])).rows).toEqual([{ n: 1 }]);
+  } finally { await db.close(); }
+});
+
+test("returning logins preserve existing eligibility, account identity and provisioning state", async () => {
+  const db = runtimeDatabase(), user = identity();
+  try {
+    const first = await bootstrapAccount(user, db);
+    const providerId = randomUUID();
+    await admin.query("UPDATE harborline.profiles SET timezone='Asia/Kolkata', pilot_enabled=true, eligibility_status='ELIGIBLE', eligibility_checked_at=now() WHERE auth_user_id=$1", [user.id]);
+    await admin.query("UPDATE harborline.gateway_accounts SET provider_user_id=$1, provisioning_state='PROVISIONING', policy_revision=7 WHERE id=$2", [providerId, first.accountId]);
+    expect(await bootstrapAccount(user, db)).toEqual({ ...first, timezone: "Asia/Kolkata", pilotEnabled: true,
+      eligibilityStatus: "ELIGIBLE", providerUserId: providerId, provisioningState: "PROVISIONING" });
+    expect((await admin.query("SELECT policy_revision FROM harborline.gateway_accounts WHERE id=$1", [first.accountId])).rows).toEqual([{ policy_revision: 7 }]);
+  } finally { await db.close(); }
+});
+
+test("failed account insertion rolls back the newly created profile and hides database details", async () => {
+  const db = runtimeDatabase(), user = identity();
+  await admin.query(`CREATE FUNCTION harborline.test_fail_bootstrap() RETURNS trigger LANGUAGE plpgsql AS $$
+    BEGIN IF NEW.owner_id = '${user.id}'::uuid THEN RAISE EXCEPTION 'private synthetic failure'; END IF; RETURN NEW; END $$`);
+  await admin.query("CREATE TRIGGER test_fail_bootstrap BEFORE INSERT ON harborline.gateway_accounts FOR EACH ROW EXECUTE FUNCTION harborline.test_fail_bootstrap()");
+  try {
+    await expect(bootstrapAccount(user, db)).rejects.toMatchObject({ code: "operation_failed" });
+    expect((await admin.query("SELECT count(*)::int AS n FROM harborline.profiles WHERE auth_user_id=$1", [user.id])).rows).toEqual([{ n: 0 }]);
+    expect((await admin.query("SELECT count(*)::int AS n FROM harborline.gateway_accounts WHERE owner_id=$1", [user.id])).rows).toEqual([{ n: 0 }]);
+  } finally {
+    await admin.query("DROP TRIGGER test_fail_bootstrap ON harborline.gateway_accounts; DROP FUNCTION harborline.test_fail_bootstrap()");
+    await db.close();
+  }
+});
+
+test("verified owner contexts enforce two-user isolation despite supplied owner/account/provider IDs", async () => {
+  const db = runtimeDatabase(), firstIdentity = identity(), secondIdentity = identity();
+  const getDb = vi.spyOn(databaseModule, "getDatabase").mockReturnValue(db);
+  try {
+    vi.mocked(getVerifiedSession).mockResolvedValue(secondIdentity);
+    const second = await requireOwnerContext();
+    vi.mocked(getVerifiedSession).mockResolvedValue(firstIdentity);
+    const first = await Reflect.apply(requireOwnerContext, null, [{ ownerId: second.ownerId,
+      accountId: second.accountId, providerUserId: randomUUID() }]);
+    expect(first.ownerId).toBe(firstIdentity.id);
+    expect(first.accountId).not.toBe(second.accountId);
+    await db.withOwner(first.ownerId, async tx => {
+      expect((await tx.execute(sql`SELECT id FROM harborline.gateway_accounts WHERE id=${second.accountId}`)).rows).toEqual([]);
+      expect((await tx.execute(sql`UPDATE harborline.gateway_accounts SET policy_revision=99 WHERE id=${second.accountId} RETURNING id`)).rows).toEqual([]);
+      expect((await tx.execute(sql`UPDATE harborline.profiles SET timezone='Asia/Kolkata' WHERE auth_user_id=${second.ownerId} RETURNING auth_user_id`)).rows).toEqual([]);
+    });
+    expect((await admin.query("SELECT policy_revision FROM harborline.gateway_accounts WHERE id=$1", [second.accountId])).rows).toEqual([{ policy_revision: 1 }]);
+    expect((await admin.query("SELECT timezone FROM harborline.profiles WHERE auth_user_id=$1", [second.ownerId])).rows).toEqual([{ timezone: "UTC" }]);
+    vi.mocked(getVerifiedSession).mockResolvedValue(secondIdentity);
+    expect(await requireOwnerContext()).toEqual(second);
+  } finally { getDb.mockRestore(); vi.mocked(getVerifiedSession).mockReset(); await db.close(); }
 });
