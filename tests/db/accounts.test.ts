@@ -1,10 +1,16 @@
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { Pool, type PoolClient } from "pg";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
 import { sql } from "drizzle-orm";
 vi.mock("server-only", () => ({}));
 vi.mock("../../src/features/identity/session.server", () => ({ getVerifiedSession: vi.fn() }));
-import { createDatabase } from "../../src/server/db";
+import { createDatabase, createSignerDatabase } from "../../src/server/db";
+import { createSignerStore } from "../../src/features/accounts/key-store.server";
+import type { OwnerContext } from "../../src/features/identity/access.server";
+import { createProvisioningRepository } from "../../src/features/accounts/provision-repository.server";
+import { createProvisioningService } from "../../src/features/accounts/provision.server";
+import { createAccountsGateway, type AccountsTransport } from "../../src/integrations/truemarkets/accounts.server";
+import { GatewayError } from "../../src/integrations/truemarkets/errors";
 import * as databaseModule from "../../src/server/db";
 import { getVerifiedSession } from "../../src/features/identity/session.server";
 import { requireOwnerContext } from "../../src/features/identity/access.server";
@@ -48,6 +54,9 @@ beforeAll(async () => {
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='harborline_test_guest') THEN CREATE ROLE harborline_test_guest NOLOGIN; END IF;
     IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='harborline_test_runtime') THEN
       CREATE ROLE harborline_test_runtime LOGIN PASSWORD 'test-only-runtime' IN ROLE harborline_app;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='harborline_test_signer') THEN
+      CREATE ROLE harborline_test_signer LOGIN PASSWORD 'test-only-signer' IN ROLE harborline_key_store;
     END IF;
   END $$`);
   for (const [ownerId, accountId] of [[a, accountA], [b, accountB]]) {
@@ -249,4 +258,209 @@ test("verified owner contexts enforce two-user isolation despite supplied owner/
     vi.mocked(getVerifiedSession).mockResolvedValue(secondIdentity);
     expect(await requireOwnerContext()).toEqual(second);
   } finally { getDb.mockRestore(); vi.mocked(getVerifiedSession).mockReset(); await db.close(); }
+});
+
+function signerDatabase() {
+  const url = new URL(connectionString!); url.username = "harborline_test_signer"; url.password = "test-only-signer";
+  return createSignerDatabase(url.toString());
+}
+async function fixtureContext(db: ReturnType<typeof createDatabase>) {
+  const user = identity(); return { ...await bootstrapAccount(user, db), email: user.email } as OwnerContext;
+}
+
+test("signer storage persists one encrypted key, reuses it after restart and rejects mismatched recovery", async () => {
+  const db = runtimeDatabase(), secrets = signerDatabase(), key = randomBytes(32), keys = new Map([[1, key]]);
+  try {
+    const context = await fixtureContext(db);
+    const publicKey = await createSignerStore(secrets, keys, 1).resolve(context, null, true);
+    expect(await createSignerStore(secrets, keys, 1).resolve(context, publicKey, false)).toBe(publicKey);
+    const before = (await admin.query("SELECT * FROM harborline_private.signer_secrets WHERE account_id=$1", [context.accountId])).rows;
+    await expect(createSignerStore(secrets, keys, 1).resolve(context, `02${"ab".repeat(32)}`, false)).rejects.toThrow("Signer recovery requires review");
+    expect((await admin.query("SELECT * FROM harborline_private.signer_secrets WHERE account_id=$1", [context.accountId])).rows).toEqual(before);
+  } finally { await secrets.close(); await db.close(); }
+});
+
+test("a missing signer for an existing public key or an unreadable key never generates a replacement", async () => {
+  const db = runtimeDatabase(), secrets = signerDatabase(), keys = new Map([[1, randomBytes(32)]]);
+  try {
+    const context = await fixtureContext(db), store = createSignerStore(secrets, keys, 1);
+    await expect(store.resolve(context, `02${"ab".repeat(32)}`, false)).rejects.toThrow("Signer recovery requires review");
+    const publicKey = await store.resolve(context, null, true);
+    await expect(createSignerStore(secrets, new Map([[1, randomBytes(32)]]), 1).resolve(context, publicKey, false)).rejects.toThrow("Signer recovery requires review");
+    expect(await store.resolve(context, publicKey, false)).toBe(publicKey);
+  } finally { await secrets.close(); await db.close(); }
+});
+
+test("key-store connections reject application/admin logins and cannot read another owner's ciphertext", async () => {
+  const app = runtimeDatabase(), secrets = signerDatabase(), adminAsSigner = createSignerDatabase(connectionString!);
+  const appUrl = new URL(connectionString!); appUrl.username = "harborline_test_runtime"; appUrl.password = "test-only-runtime";
+  const appAsSigner = createSignerDatabase(appUrl.toString());
+  try {
+    const first = await fixtureContext(app), second = await fixtureContext(app);
+    await expect(adminAsSigner.withOwner(first.ownerId, async () => true)).rejects.toMatchObject({ code: "unsafe_role" });
+    await expect(appAsSigner.withOwner(first.ownerId, async () => true)).rejects.toMatchObject({ code: "unsafe_role" });
+    await createSignerStore(secrets, new Map([[1, randomBytes(32)]]), 1).resolve(first, null, true);
+    await secrets.withOwner(second.ownerId, async tx => {
+      expect((await tx.execute(sql`SELECT account_id FROM harborline_private.signer_secrets WHERE account_id=${first.accountId}`)).rows).toEqual([]);
+      await expect(tx.execute(sql`SELECT * FROM harborline.profiles`)).rejects.toBeDefined();
+    });
+  } finally { await app.close(); await secrets.close(); await adminAsSigner.close(); await appAsSigner.close(); }
+});
+
+const fixtureWallets = [{ chain_family: "solana", address: "11111111111111111111111111111111" },
+  { chain_family: "evm", address: `0x${"ab".repeat(20)}` }];
+async function provisioningFixture() {
+  const db = runtimeDatabase(), secrets = signerDatabase(), keys = new Map([[1, randomBytes(32)]]);
+  const context = await fixtureContext(db);
+  await admin.query("UPDATE harborline.profiles SET pilot_enabled=true, eligibility_status='ELIGIBLE', eligibility_checked_at=now() WHERE auth_user_id=$1", [context.ownerId]);
+  const createService = (transport: AccountsTransport) => createProvisioningService(
+    createProvisioningRepository(db, createSignerStore(secrets, keys, 1)),
+    createAccountsGateway("22222222-2222-4222-8222-222222222222", transport));
+  return { db, secrets, keys, context, createService, close: async () => { await secrets.close(); await db.close(); } };
+}
+function simulatedCustomer(reference: string, userId = randomUUID(), wallets = fixtureWallets) {
+  return { user_id: userId, external_ref_id: reference, created_at: "2026-11-24T00:00:00Z", wallets };
+}
+
+test("concurrent provisioning persists the signer before the provider call and creates only one customer", async () => {
+  const f = await provisioningFixture();
+  const customer = simulatedCustomer(f.context.externalRefId);
+  const transport = vi.fn<AccountsTransport>(async (method, path, body) => {
+    void path;
+    if (method === "GET") return { status: 200, body: { data: [], pagination: { next_cursor: null } } };
+    const stored = (await admin.query("SELECT public_key, provisioning_state FROM harborline.gateway_accounts WHERE id=$1", [f.context.accountId])).rows[0];
+    expect(stored).toEqual({ public_key: (body as { signer_public_key: string }).signer_public_key, provisioning_state: "PROVISIONING" });
+    expect((await admin.query("SELECT count(*)::int AS n FROM harborline_private.signer_secrets WHERE account_id=$1", [f.context.accountId])).rows).toEqual([{ n: 1 }]);
+    return { status: 201, body: customer };
+  });
+  try {
+    const service = f.createService(transport);
+    const outcomes = await Promise.all(Array.from({ length: 8 }, () => service.provision(f.context)));
+    expect(outcomes).toEqual(Array.from({ length: 8 }, () => ({ status: "ready", accountId: f.context.accountId })));
+    expect(await service.provision(f.context)).toEqual(outcomes[0]);
+    expect(transport.mock.calls.filter(([method]) => method === "POST")).toHaveLength(1);
+    expect((await admin.query("SELECT provider_user_id, provisioning_state FROM harborline.gateway_accounts WHERE id=$1", [f.context.accountId])).rows)
+      .toEqual([{ provider_user_id: customer.user_id, provisioning_state: "READY" }]);
+  } finally { await f.close(); }
+});
+
+test.each(["503", "empty wallets"])("%s recovery reuses the durable external reference and signer", async failure => {
+  const f = await provisioningFixture(), userId = randomUUID(); let attempts = 0;
+  const transport = vi.fn<AccountsTransport>(async (method) => {
+    if (method === "GET") return { status: 200, body: { data: attempts ? [simulatedCustomer(f.context.externalRefId, userId, [])] : [], pagination: { next_cursor: null } } };
+    attempts++;
+    if (attempts === 1 && failure === "503") throw new GatewayError("unknown_outcome", 503);
+    return { status: 201, body: simulatedCustomer(f.context.externalRefId, userId, attempts === 1 ? [] : fixtureWallets) };
+  });
+  try {
+    expect((await f.createService(transport).provision(f.context)).status).toBe("pending");
+    expect((await f.createService(transport).provision(f.context)).status).toBe("ready");
+    const bodies = transport.mock.calls.filter(([method]) => method === "POST").map(([, , body]) => body);
+    expect(bodies).toHaveLength(2); expect(bodies[1]).toEqual(bodies[0]);
+  } finally { await f.close(); }
+});
+
+test("an existing fully provisioned user or HTTP 200 cannot prove the registered signer", async () => {
+  const f = await provisioningFixture(), customer = simulatedCustomer(f.context.externalRefId);
+  const transport = vi.fn<AccountsTransport>(async () => ({ status: 200, body: { data: [customer], pagination: { next_cursor: null } } }));
+  try {
+    expect((await f.createService(transport).provision(f.context)).status).toBe("recovery_required");
+    expect(transport.mock.calls.every(([method]) => method === "GET")).toBe(true);
+    expect((await admin.query("SELECT provisioning_state FROM harborline.gateway_accounts WHERE id=$1", [f.context.accountId])).rows).toEqual([{ provisioning_state: "PROVISIONING" }]);
+  } finally { await f.close(); }
+});
+
+test("lost signer material blocks retries without replacing the original public key", async () => {
+  const f = await provisioningFixture();
+  const transport = vi.fn<AccountsTransport>(async (method) => method === "GET"
+    ? { status: 200, body: { data: [], pagination: { next_cursor: null } } }
+    : { status: 201, body: simulatedCustomer(f.context.externalRefId) });
+  try {
+    const service = f.createService(transport);
+    expect((await service.provision(f.context)).status).toBe("ready");
+    const before = (await admin.query("SELECT public_key FROM harborline.gateway_accounts WHERE id=$1", [f.context.accountId])).rows;
+    await admin.query("DELETE FROM harborline_private.signer_secrets WHERE account_id=$1", [f.context.accountId]);
+    transport.mockClear();
+    expect((await service.provision(f.context)).status).toBe("recovery_required");
+    expect(transport).not.toHaveBeenCalled();
+    expect((await admin.query("SELECT public_key FROM harborline.gateway_accounts WHERE id=$1", [f.context.accountId])).rows).toEqual(before);
+    expect((await admin.query("SELECT count(*)::int AS n FROM harborline_private.signer_secrets WHERE account_id=$1", [f.context.accountId])).rows).toEqual([{ n: 0 }]);
+  } finally { await f.close(); }
+});
+
+test("current eligibility and owner mapping are checked before signer creation or provider access", async () => {
+  const f = await provisioningFixture(); const transport = vi.fn<AccountsTransport>();
+  try {
+    const other = await fixtureContext(f.db), service = f.createService(transport);
+    expect((await service.provision({ ...f.context, accountId: other.accountId } as OwnerContext)).status).toBe("blocked");
+    await admin.query("UPDATE harborline.profiles SET pilot_enabled=false WHERE auth_user_id=$1", [f.context.ownerId]);
+    expect((await service.provision({ ...f.context, pilotEnabled: true, eligibilityStatus: "ELIGIBLE" } as OwnerContext)).status).toBe("blocked");
+    expect(transport).not.toHaveBeenCalled();
+    expect((await admin.query("SELECT count(*)::int AS n FROM harborline_private.signer_secrets WHERE account_id=$1", [f.context.accountId])).rows).toEqual([{ n: 0 }]);
+  } finally { await f.close(); }
+});
+
+test("HTTP 200 during create leaves signer verification unresolved even with both wallets", async () => {
+  const f = await provisioningFixture();
+  const transport = vi.fn<AccountsTransport>(async method => method === "GET"
+    ? { status: 200, body: { data: [], pagination: { next_cursor: null } } }
+    : { status: 200, body: simulatedCustomer(f.context.externalRefId) });
+  try {
+    expect((await f.createService(transport).provision(f.context)).status).toBe("recovery_required");
+    expect((await admin.query("SELECT provisioning_state, provider_user_id FROM harborline.gateway_accounts WHERE id=$1", [f.context.accountId])).rows)
+      .toEqual([{ provisioning_state: "PROVISIONING", provider_user_id: null }]);
+  } finally { await f.close(); }
+});
+
+test("a crash between private-key persistence and public-key binding adopts the stored key", async () => {
+  const f = await provisioningFixture(), store = createSignerStore(f.secrets, f.keys, 1);
+  let originalPublicKey = "";
+  const interruptedStore = { resolve: async (...args: Parameters<typeof store.resolve>) => {
+    originalPublicKey = await store.resolve(...args); throw new Error("synthetic crash after durable secret write");
+  } };
+  try {
+    const first = await createProvisioningRepository(f.db, interruptedStore).prepare(f.context);
+    expect(first.status).toBe("recovery_required");
+    expect((await admin.query("SELECT public_key FROM harborline.gateway_accounts WHERE id=$1", [f.context.accountId])).rows).toEqual([{ public_key: null }]);
+    const encryptedBefore = (await admin.query("SELECT * FROM harborline_private.signer_secrets WHERE account_id=$1", [f.context.accountId])).rows;
+    const transport = vi.fn<AccountsTransport>(async (method, path, body) => {
+      void path;
+      if (method === "GET") return { status: 200, body: { data: [], pagination: { next_cursor: null } } };
+      expect((body as { signer_public_key: string }).signer_public_key).toBe(originalPublicKey);
+      return { status: 201, body: simulatedCustomer(f.context.externalRefId) };
+    });
+    expect((await f.createService(transport).provision(f.context)).status).toBe("ready");
+    expect((await admin.query("SELECT * FROM harborline_private.signer_secrets WHERE account_id=$1", [f.context.accountId])).rows).toEqual(encryptedBefore);
+  } finally { await f.close(); }
+});
+
+test("a mismatched local key or changed provider identity blocks provisioning without resetting state", async () => {
+  const f = await provisioningFixture(), userId = randomUUID();
+  const transport = vi.fn<AccountsTransport>(async method => method === "GET"
+    ? { status: 200, body: { data: [], pagination: { next_cursor: null } } }
+    : { status: 201, body: simulatedCustomer(f.context.externalRefId, userId, []) });
+  try {
+    const service = f.createService(transport);
+    expect((await service.provision(f.context)).status).toBe("pending");
+    transport.mockResolvedValue({ status: 200, body: { data: [simulatedCustomer(f.context.externalRefId, randomUUID(), [])], pagination: { next_cursor: null } } });
+    expect((await service.provision(f.context)).status).toBe("recovery_required");
+    expect((await admin.query("SELECT provider_user_id FROM harborline.gateway_accounts WHERE id=$1", [f.context.accountId])).rows).toEqual([{ provider_user_id: userId }]);
+    await admin.query("UPDATE harborline.gateway_accounts SET public_key=$1 WHERE id=$2", [`02${"ab".repeat(32)}`, f.context.accountId]);
+    transport.mockClear();
+    expect((await service.provision(f.context)).status).toBe("recovery_required");
+    expect(transport).not.toHaveBeenCalled();
+  } finally { await f.close(); }
+});
+
+test("conflicting wallet addresses between lookup and create require recovery before readiness", async () => {
+  const f = await provisioningFixture(), userId = randomUUID();
+  const transport = vi.fn<AccountsTransport>(async method => method === "GET"
+    ? { status: 200, body: { data: [simulatedCustomer(f.context.externalRefId, userId, [fixtureWallets[0]])], pagination: { next_cursor: null } } }
+    : { status: 201, body: simulatedCustomer(f.context.externalRefId, userId,
+      [{ chain_family: "solana", address: "So11111111111111111111111111111111111111112" }, fixtureWallets[1]]) });
+  try {
+    expect((await f.createService(transport).provision(f.context)).status).toBe("recovery_required");
+    expect((await admin.query("SELECT provisioning_state FROM harborline.gateway_accounts WHERE id=$1", [f.context.accountId])).rows)
+      .toEqual([{ provisioning_state: "PROVISIONING" }]);
+  } finally { await f.close(); }
 });
