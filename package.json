@@ -8,13 +8,16 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test": "pnpm test:provider && pnpm test:gateway",
+    "test:gateway": "vitest run",
     "test:provider": "node --test scripts/verify-readonly-provider.test.mjs",
     "verify:provider": "node scripts/verify-readonly-provider.ts"
   },
   "dependencies": {
     "next": "16.4.6",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "server-only": "0.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.3.3",
@@ -24,7 +27,8 @@
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.6",
     "tailwindcss": "4.3.3",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "5.1.1"
   },
   "packageManager": "pnpm@11.8.0",
   "engines": {

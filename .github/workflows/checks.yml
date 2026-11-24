@@ -58,5 +58,8 @@ jobs:
       - name: Test public provider checker (offline)
         run: pnpm test:provider
 
+      - name: Test server Gateway contracts (offline)
+        run: pnpm test:gateway
+
       - name: Build production application
         run: pnpm build
