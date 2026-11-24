@@ -55,5 +55,8 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Test public provider checker (offline)
+        run: pnpm test:provider
+
       - name: Build production application
         run: pnpm build
