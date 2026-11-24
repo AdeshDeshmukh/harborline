@@ -18,7 +18,7 @@ export class DatabaseError extends Error {
   }
 }
 
-export function createDatabase(connectionString: string) {
+function createRoleDatabase(connectionString: string, roleName: "harborline_app" | "harborline_key_store") {
   try {
     const url = new URL(connectionString);
     if (!["postgres:", "postgresql:"].includes(url.protocol) || !url.username || url.pathname.length < 2) throw new Error();
@@ -41,9 +41,10 @@ export function createDatabase(connectionString: string) {
         return await db.transaction(async tx => {
           const role = await tx.execute<{ unsafe: boolean }>(sql`SELECT
             EXISTS (SELECT 1 FROM pg_roles WHERE rolname = session_user AND (rolsuper OR rolbypassrls OR rolcreatedb OR rolcreaterole))
-            OR pg_has_role(session_user, 'harborline_key_store', 'member') AS unsafe`);
+            OR pg_has_role(session_user, ${roleName === "harborline_app" ? "harborline_key_store" : "harborline_app"}, 'member')
+            OR NOT pg_has_role(session_user, ${roleName}, 'member') AS unsafe`);
           if (role.rows[0]?.unsafe !== false) throw new DatabaseError("unsafe_role");
-          await tx.execute(sql`SET LOCAL ROLE harborline_app`);
+          await tx.execute(roleName === "harborline_app" ? sql`SET LOCAL ROLE harborline_app` : sql`SET LOCAL ROLE harborline_key_store`);
           await tx.execute(sql`SELECT set_config('harborline.owner_id', ${ownerId}, true)`);
           return work(tx);
         });
@@ -58,6 +59,14 @@ export function createDatabase(connectionString: string) {
     },
     async close() { await pool.end(); },
   };
+}
+
+export function createDatabase(connectionString: string) {
+  return createRoleDatabase(connectionString, "harborline_app");
+}
+
+export function createSignerDatabase(connectionString: string) {
+  return createRoleDatabase(connectionString, "harborline_key_store");
 }
 
 let singleton: ReturnType<typeof createDatabase> | undefined;
