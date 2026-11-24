@@ -2,8 +2,9 @@
 
 Harborline uses Supabase Auth email links with PKCE. This slice establishes a
 server-verified identity and local sign-out. It does not bootstrap database
-accounts, provision Gateway customers, establish investment eligibility, or
-enable financial actions. Ownership and local account bootstrap belong to HL-11.
+accounts itself, provision Gateway customers, establish investment eligibility, or
+enable financial actions. The account page now calls the separate
+[HL-11 ownership boundary](account-ownership.md) for local account bootstrap.
 
 ## Configuration and setup
 
@@ -99,7 +100,8 @@ using synthetic identities and an in-memory simulated Auth endpoint. They cover
 PKCE challenge/verifier binding, provider verification, forged and expired
 sessions, bounded redirects, CSRF rejection, disabled configuration and local
 logout. Database tests exercise the existing persistence boundary separately;
-HL-10 does not connect authenticated identities to database ownership yet.
+HL-10 tests identity in isolation; HL-11 separately tests its ownership boundary
+and local account bootstrap against disposable PostgreSQL.
 
 Local production-preview checks confirm that an unsigned visitor to `/account`
 returns to `/sign-in` and demo mode exposes a disabled sign-in form. These checks
