@@ -20,7 +20,7 @@ was created in this audit. No live integration proof exists from this work.
 
 | Stage | Sanitized evidence to retain | Current state |
 | --- | --- | --- |
-| Public route (HL-07) | Date/environment, listing ID, mint/address, chain, venue, class, status, quote currency and restriction rules | Outside this slice; tracked separately in HL-07. No public-route observation is included in the HL-06 evidence set. |
+| Public route (HL-07) | Date/environment, listing ID, mint/address, chain, venue, class, status, quote currency and restriction rules | Local catalog/restriction observation collected: [record](hl-07-public-read.json), [interpretation](../public-provider-check.md). Quote currency and deployment-origin check remain unverified. |
 | Access and eligibility | Confirmed organization access, supported pilot geography and onboarding method, provider guidance reference | Not verified |
 | Account and recovery | Stable mapping, wallet chain, signer public-key match, backup/restore rehearsal and supported recovery procedure | Not verified |
 | Prepared review | Actual response shape, nonempty order ID, venue, quote and fee units, bounded debit, payload digests, policy/review revision | Not collected |
