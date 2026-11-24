@@ -8,6 +8,13 @@
       "when": 1795502703537,
       "tag": "0001_account_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795537464150,
+      "tag": "0002_planning_storage",
+      "breakpoints": true
     }
   ]
 }

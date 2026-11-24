@@ -68,10 +68,12 @@ beforeAll(async () => {
 });
 afterAll(async () => { await admin.end(); });
 
-test("foundation migration installs three tables with forced RLS", async () => {
+test("account and planning migrations install five tables with forced RLS", async () => {
   const result = await admin.query("SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relnamespace IN ('harborline'::regnamespace, 'harborline_private'::regnamespace) AND relkind='r' ORDER BY relname");
   expect(result.rows).toEqual([
+    { relname: "commitments", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "gateway_accounts", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "planning_policies", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "profiles", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "signer_secrets", relrowsecurity: true, relforcerowsecurity: true },
   ]);
@@ -96,7 +98,7 @@ test("migration reruns preserve existing records instead of reapplying the found
   const before = (await admin.query("SELECT count(*)::integer AS n FROM harborline.gateway_accounts")).rows;
   await runMigrations(connectionString, "test");
   expect((await admin.query("SELECT count(*)::integer AS n FROM harborline.gateway_accounts")).rows).toEqual(before);
-  expect((await admin.query("SELECT count(*)::integer AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 1 }]);
+  expect((await admin.query("SELECT count(*)::integer AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 2 }]);
 });
 
 test("runtime wrapper refuses a migration administrator connection", async () => {
