@@ -20,6 +20,20 @@ jobs:
     timeout-minutes: 15
     env:
       NEXT_TELEMETRY_DISABLED: "1"
+    services:
+      postgres:
+        image: postgres:16.15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: harborline-test-only
+          POSTGRES_DB: harborline_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d harborline_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -60,6 +74,12 @@ jobs:
 
       - name: Test server Gateway contracts (offline)
         run: pnpm test:gateway
+
+      - name: Test PostgreSQL migrations and role isolation
+        env:
+          TEST_DATABASE_URL: postgresql://postgres:harborline-test-only@127.0.0.1:5432/harborline_test
+          TEST_DATABASE_DISPOSABLE: "true"
+        run: pnpm test:db
 
       - name: Build production application
         run: pnpm build
