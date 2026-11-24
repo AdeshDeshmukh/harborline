@@ -94,7 +94,8 @@ be treated as fixed 24-hour date arithmetic.
 `validateHorizonDays` accepts only numeric integers from 1 through 90. It performs
 no implicit conversion of form strings and chooses no hidden default. Later UI
 and policy code must explicitly apply/confirm the plan's proposed 30-day default.
-Horizon date addition and inclusion rules belong to HL-14.
+Horizon date addition and inclusion rules are implemented separately in
+[HL-14 allowance calculation](allowance-calculation.md).
 
 ## Trade-offs and validation
 

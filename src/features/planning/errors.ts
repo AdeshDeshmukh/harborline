@@ -1,5 +1,6 @@
 export type PlanningValidationCode = "invalid_amount" | "unsupported_precision" | "amount_out_of_range" |
-  "amount_must_be_positive" | "negative_result" | "invalid_scale" | "invalid_date" | "invalid_timezone" | "invalid_horizon";
+  "amount_must_be_positive" | "negative_result" | "invalid_scale" | "invalid_date" | "invalid_timezone" | "invalid_horizon" |
+  "invalid_allowance_input" | "invalid_commitment" | "duplicate_commitment" | "invalid_policy_revision";
 const messages: Record<PlanningValidationCode, string> = {
   invalid_amount: "Enter an unsigned decimal amount without spaces or separators",
   unsupported_precision: "Amount has more decimal places than supported",
@@ -10,6 +11,10 @@ const messages: Record<PlanningValidationCode, string> = {
   invalid_date: "Enter a valid calendar date in YYYY-MM-DD format",
   invalid_timezone: "Choose a supported IANA timezone",
   invalid_horizon: "Planning horizon must be an integer from one to ninety days",
+  invalid_allowance_input: "Allowance input must include a commitment list",
+  invalid_commitment: "Commitment identity or status is invalid",
+  duplicate_commitment: "Commitment identities must be unique",
+  invalid_policy_revision: "Policy revision must be a positive 32-bit integer",
 };
 export class PlanningValidationError extends Error {
   constructor(readonly code: PlanningValidationCode) { super(messages[code]); this.name = "PlanningValidationError"; }
