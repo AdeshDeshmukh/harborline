@@ -18,6 +18,7 @@ export default function Home() {
           In development. Trading is not available yet.
         </p>
         <Link href="/sign-in" prefetch={false} className="mt-8 inline-flex rounded-xl border border-slate-600 px-5 py-3 text-sm font-medium text-cyan-300 hover:border-cyan-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300">Private pilot sign-in</Link>
+        <Link href="/sample/asset" prefetch={false} className="ml-0 mt-4 inline-flex min-h-11 items-center text-sm text-cyan-200 underline underline-offset-4 sm:ml-6">Explore a fictional review</Link>
       </section>
     </main>
   );

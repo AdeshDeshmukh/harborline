@@ -14,6 +14,7 @@ import {createReviewVault} from "../../src/features/orders/review-vault.server";
 import {normalizePreparationResponse} from "../../src/integrations/truemarkets/preparation.server";
 import {createOrderPreparationAdapter} from "../../src/integrations/truemarkets/preparation.server";
 import {createPreparationService} from "../../src/features/orders/prepare.server";
+import {createReviewScreenReader} from "../../src/features/orders/screen-reader.server";
 import {runMigrations,validateMigrationTarget} from "../../scripts/migrate-db.mjs";
 import {assets,quoteContext,response,instant} from "../fixtures/investment-review";
 const connectionString=process.env.TEST_DATABASE_URL;
@@ -162,4 +163,49 @@ test.each(["initialized","complete"])("duplicate provider reference in %s respon
 test("review response distinguishes a fee included in the input",async()=>{
   const {owner,input}=await setup(),result=await reviews.record(owner,{...input,evidence:{...input.evidence,feeTreatment:"included_in_input",maximumDebit:"100"}});
   expect(result.review).toMatchObject({operationKind:"buy",feeTreatment:"included_in_input",blockingReasons:["fixture_only"],maximumDebit:"100",cash:{afterMaximumDebit:"1900"}});
+});
+test("screen reads saved exact terms without a vault and cannot expose another owner",async()=>{
+  const first=await setup(),second=await setup();await reviews.record(first.owner,first.input);
+  const reader=createReviewScreenReader(db,clock),screen=await reader.load(first.owner,first.input.intentId);
+  expect(screen).toMatchObject({status:"current",canProceed:false,review:{maximumDebit:"100.5",cash:{afterMaximumDebit:"1899.5"}}});
+  expect(JSON.stringify(screen)).not.toMatch(/payload|ciphertext|nonce|encryptionKey/);
+  await expect(reader.load(second.owner,first.input.intentId)).rejects.toMatchObject({code:"not_found"});
+});
+test("screen reads detect changed planning context without changing stored terms",async()=>{
+  const data=await setup();await reviews.record(data.owner,data.input);const reader=createReviewScreenReader(db,clock),before=await reviews.get(data.owner,data.input.intentId);
+  await admin.query("UPDATE harborline.gateway_accounts SET policy_revision=3 WHERE id=$1",[data.owner.accountId]);
+  expect(await reader.load(data.owner,data.input.intentId)).toMatchObject({status:"changed_plan",review:before,canProceed:false});
+  expect(await reviews.get(data.owner,data.input.intentId)).toEqual(before);
+});
+test("a stale saved balance and expired quote remain historical information",async()=>{
+  const data=await setup();await reviews.record(data.owner,data.input);const reader=createReviewScreenReader(db,clock);
+  now+=15001;expect((await reader.load(data.owner,data.input.intentId)).status).toBe("stale_balance");
+  now+=5000;expect((await reader.load(data.owner,data.input.intentId)).status).toBe("expired");
+});
+test("an uncertain operation is never relabeled as an expired unsigned review",async()=>{
+  const data=await setup();await reviews.record(data.owner,data.input);const ready=await intents.get(data.owner,data.input.intentId),submitting=await intents.advance(data.owner,ready.id,ready.revision,"SUBMITTING");await intents.advance(data.owner,ready.id,submitting.revision,"UNKNOWN");
+  now+=86400000;expect(await createReviewScreenReader(db,clock).load(data.owner,ready.id)).toMatchObject({status:"uncertain",canProceed:false});
+});
+test("normal unsigned cleanup renders expiry rather than replacement",async()=>{
+  const data=await setup();await reviews.record(data.owner,data.input);const ready=await intents.get(data.owner,data.input.intentId);
+  now+=20000;await intents.cleanup(data.owner,ready.id,ready.revision);
+  expect(await createReviewScreenReader(db,clock).load(data.owner,ready.id)).toMatchObject({status:"expired",canProceed:false});
+});
+test("screen carries the earlier balance freshness deadline",async()=>{
+  const data=await setup();now+=14000;
+  const prepared=normalizePreparationResponse({...response(),order_id:randomUUID()},{...quoteContext,observedAt:clock().toISOString()});if(prepared.kind!=="prepared")throw new Error("fixture");
+  await reviews.record(data.owner,{...data.input,prepared,evidence:{...data.input.evidence,quoteFingerprint:prepared.quote.fingerprint,expiresAt:new Date(now+20000).toISOString()}});
+  expect(await createReviewScreenReader(db,clock).load(data.owner,data.input.intentId)).toMatchObject({status:"current",balanceValidUntil:"2026-11-25T12:00:15.000Z",review:{localExpiresAt:"2026-11-25T12:00:34.000Z"}});
+});
+test("unknown nested stored metadata never becomes browser props",async()=>{
+  const data=await setup();await reviews.record(data.owner,data.input);
+  await admin.query("UPDATE harborline.order_reviews SET terms=jsonb_set(jsonb_set(terms,'{quote,private_note}',to_jsonb('synthetic_only_secret'::text)),'{cash,private_note}',to_jsonb('123.45'::text)) WHERE intent_id=$1",[data.input.intentId]);
+  const screen=await createReviewScreenReader(db,clock).load(data.owner,data.input.intentId);
+  expect(screen.status).toBe("current");expect(JSON.stringify(screen)).not.toMatch(/private_note|synthetic_only_secret/);
+});
+test.each(["maximum_debit","expires_at"])("a stored %s inconsistent with hashed terms is blocked",async column=>{
+  const data=await setup();await reviews.record(data.owner,data.input);
+  if(column==="maximum_debit")await admin.query("UPDATE harborline.order_reviews SET maximum_debit=101 WHERE intent_id=$1",[data.input.intentId]);
+  else await admin.query("UPDATE harborline.order_reviews SET expires_at=expires_at-interval '1 second' WHERE intent_id=$1",[data.input.intentId]);
+  await expect(createReviewScreenReader(db,clock).load(data.owner,data.input.intentId)).rejects.toMatchObject({code:"unavailable"});
 });
