@@ -77,6 +77,7 @@ test("account and planning migrations install nine tables with forced RLS", asyn
     { relname: "commitments", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "gateway_accounts", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "investment_intents", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "order_reviews", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "planning_policies", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "profiles", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "signer_secrets", relrowsecurity: true, relforcerowsecurity: true },
@@ -102,7 +103,7 @@ test("migration reruns preserve existing records instead of reapplying the found
   const before = (await admin.query("SELECT count(*)::integer AS n FROM harborline.gateway_accounts")).rows;
   await runMigrations(connectionString, "test");
   expect((await admin.query("SELECT count(*)::integer AS n FROM harborline.gateway_accounts")).rows).toEqual(before);
-  expect((await admin.query("SELECT count(*)::integer AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 4 }]);
+  expect((await admin.query("SELECT count(*)::integer AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 5 }]);
 });
 
 test("runtime wrapper refuses a migration administrator connection", async () => {
