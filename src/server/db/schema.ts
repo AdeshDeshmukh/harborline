@@ -219,3 +219,41 @@ export const orderReviews = app.table("order_reviews", {
   check("review_expiry_bounded",sql`isfinite(${table.createdAt}) AND isfinite(${table.expiresAt}) AND ${table.expiresAt}>${table.createdAt} AND ${table.expiresAt}<=${table.createdAt}+interval '20 seconds'`),
   pgPolicy("order_reviews_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`,withCheck:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`}),
 ]).enableRLS();
+
+// HL-23 records fixture approval authority only. These rows are append-only;
+// future execution outcomes belong to the intent/recovery state machine.
+export const orderApprovals = app.table("order_approvals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  accountId: uuid("account_id").notNull(), intentId: uuid("intent_id").notNull(),
+  ownerId: uuid("owner_id").notNull().references(() => profiles.authUserId, { onDelete: "restrict" }),
+  reviewRevision: integer("review_revision").notNull(), termsHash: varchar("terms_hash", { length: 64 }).notNull(),
+  balanceSnapshotId: uuid("balance_snapshot_id").notNull(),
+  source: varchar("source", { length: 32 }).$type<"contract_fixture">().notNull(),
+  approvedAt: timestamp("approved_at", { withTimezone: true }).notNull(),
+}, (table): PgTableExtraConfigValue[] => [
+  unique("approval_intent_review").on(table.intentId, table.reviewRevision),
+  unique("approval_owned_identity").on(table.id, table.intentId, table.accountId),
+  foreignKey({ columns: [table.intentId, table.accountId], foreignColumns: [investmentIntents.id, investmentIntents.accountId], name: "approval_owned_intent_fk" }).onDelete("restrict"),
+  foreignKey({ columns: [table.intentId, table.reviewRevision], foreignColumns: [orderReviews.intentId, orderReviews.revision], name: "approval_review_fk" }).onDelete("restrict"),
+  foreignKey({ columns: [table.balanceSnapshotId, table.accountId], foreignColumns: [balanceSnapshots.id, balanceSnapshots.accountId], name: "approval_owned_balance_fk" }).onDelete("restrict"),
+  check("approval_fixture_valid", sql`${table.source}='contract_fixture' AND ${table.reviewRevision}>0 AND ${table.termsHash} ~ '^[0-9a-f]{64}$' AND isfinite(${table.approvedAt})`),
+  pgPolicy("order_approvals_owner", { for: "all", to: appRole,
+    using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`,
+    withCheck: sql`${table.ownerId}=${owner} AND exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})` }),
+]).enableRLS();
+
+export const executionAttempts = app.table("execution_attempts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  accountId: uuid("account_id").notNull(), intentId: uuid("intent_id").notNull(),
+  approvalId: uuid("approval_id").notNull(),
+  source: varchar("source", { length: 32 }).$type<"contract_fixture">().notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+}, (table): PgTableExtraConfigValue[] => [
+  unique("attempt_one_per_intent").on(table.intentId),
+  unique("attempt_one_per_approval").on(table.approvalId),
+  foreignKey({ columns: [table.approvalId, table.intentId, table.accountId], foreignColumns: [orderApprovals.id, orderApprovals.intentId, orderApprovals.accountId], name: "attempt_owned_approval_fk" }).onDelete("restrict"),
+  check("attempt_fixture_valid", sql`${table.source}='contract_fixture' AND isfinite(${table.startedAt})`),
+  pgPolicy("execution_attempts_owner", { for: "all", to: appRole,
+    using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`,
+    withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})` }),
+]).enableRLS();

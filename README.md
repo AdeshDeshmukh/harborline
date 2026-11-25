@@ -104,6 +104,7 @@ for the rationale, limits, and revisit conditions.
 
 - [Product and architecture plan](./harborline-product-and-architecture-plan.md)
 - [System design reading summary](./system-design-books-summary.md)
+- [Explicit approval state machine and fixture boundary](./docs/order-approval.md)
 
 ## Current boundaries
 

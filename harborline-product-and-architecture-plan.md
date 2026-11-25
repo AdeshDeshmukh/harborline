@@ -1208,6 +1208,7 @@ The phase letters here describe review batches; the original numbered schedule i
 #### HL-23 — `feat(orders): enforce explicit single approval`
 
 - **Branch / labels:** `feat/hl-23-approval-state`; `type:feature`, `area:orders`.
+- **Local implementation:** immutable fixture approvals/attempts, owned account serialization, exact-term and fresh-cash checks, atomic `SUBMITTING` claim, and post-commit fixture handoff are implemented locally. No approval endpoint/UI action, signer or provider execution is enabled. Publication and final verification are tracked separately; see [approval decisions and boundaries](./docs/order-approval.md).
 - **Prerequisite:** HL-16, HL-20–21.
 - **Scope:** state machine, immutable approval record and atomic review-to-submitting transition, freshness/ownership/terms/revision/live-control checks; tested against a fixture executor boundary.
 - **Boundary:** UI live execution remains disabled. Transition approval never accepts arbitrary client payloads or caller-supplied owner IDs.
