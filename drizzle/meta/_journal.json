@@ -15,6 +15,13 @@
       "when": 1795537464150,
       "tag": "0002_planning_storage",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795604987602,
+      "tag": "0003_calculation_snapshots",
+      "breakpoints": true
     }
   ]
 }

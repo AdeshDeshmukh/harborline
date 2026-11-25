@@ -139,8 +139,8 @@ test("active account operations block edits while keeping the current plan reada
   expect(await service.get(owner)).toMatchObject({ revision: 2, commitments: [] });
 });
 
-test("migration reruns preserve saved plans and the two migration journal entries", async () => {
+test("migration reruns preserve saved plans and the three migration journal entries", async () => {
   const owner = await context(), saved = await service.savePolicy(owner, policy());
   await runMigrations(connectionString, "test"); expect(await service.get(owner)).toEqual(saved);
-  expect((await admin.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 2 }]);
+  expect((await admin.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 3 }]);
 });
