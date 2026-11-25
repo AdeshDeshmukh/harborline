@@ -1219,6 +1219,7 @@ The phase letters here describe review batches; the original numbered schedule i
 #### HL-24 — `feat(gateway): sign and execute an approved order once`
 
 - **Branch / labels:** `feat/hl-24-signed-execution`; `type:feature`, `area:gateway`, `area:orders`.
+- **Local implementation:** fixture-only exact-byte wallet stamping, unique durable dispatch, post-signing revalidation, bounded outcome/uncertainty persistence and a hard-disabled approval route are implemented locally. UI/live execution remains disabled. See [execution decisions, evidence and limits](./docs/order-execution.md); publication and final verification are tracked separately.
 - **Prerequisite:** HL-08, HL-12, HL-19, HL-23; approved pilot controls, signer contract and recovery decisions.
 - **Scope:** `signer.server.ts`, approval orchestration and endpoint; sign only stored owned provider payloads in the documented order, execute once after durable approval, persist response or uncertainty. Connect the review action behind disabled-by-default pilot controls.
 - **Boundary:** retain the operation slot on uncertainty; no automatic retry of an ambiguous mutation. This PR's fixture verification spends no money.

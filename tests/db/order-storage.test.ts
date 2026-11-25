@@ -96,8 +96,8 @@ test("audit insertion failure rolls back intent, slot and transition together",a
  const {owner,command}=await setup();await admin.query(`CREATE FUNCTION harborline.test_fail_audit() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private synthetic detail'; END $$`);await admin.query("CREATE TRIGGER test_fail_audit BEFORE INSERT ON harborline.audit_events FOR EACH ROW EXECUTE FUNCTION harborline.test_fail_audit()");
  try{await expect(store.claim(owner,command)).rejects.toMatchObject({code:"unavailable",message:"Order storage is temporarily unavailable"});expect(await active(owner.accountId)).toBeNull();expect((await admin.query("SELECT id FROM harborline.investment_intents WHERE account_id=$1",[owner.accountId])).rows).toEqual([]);}finally{await admin.query("DROP TRIGGER test_fail_audit ON harborline.audit_events;DROP FUNCTION harborline.test_fail_audit()");}
 });
-test("migration reruns preserve intents and six journal entries",async()=>{
- const {owner,command}=await setup(),{intent}=await store.claim(owner,command);await runMigrations(connectionString,"test");expect(await store.get(owner,intent.id)).toEqual(intent);expect((await admin.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{n:6}]);
+test("migration reruns preserve intents and seven journal entries",async()=>{
+ const {owner,command}=await setup(),{intent}=await store.claim(owner,command);await runMigrations(connectionString,"test");expect(await store.get(owner,intent.id)).toEqual(intent);expect((await admin.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{n:7}]);
 });
 test("definitive fixture rejection releases while unverified rejection keeps an unknown operation",async()=>{
  const first=await setup(),a=await store.claim(first.owner,first.command),p=await store.beginPreparation(first.owner,a.intent.id,1);

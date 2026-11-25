@@ -68,7 +68,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await admin.end(); });
 
-test("account and planning migrations install twelve tables with forced RLS", async () => {
+test("account and planning migrations install thirteen tables with forced RLS", async () => {
   const result = await admin.query("SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relnamespace IN ('harborline'::regnamespace, 'harborline_private'::regnamespace) AND relkind='r' ORDER BY relname");
   expect(result.rows).toEqual([
     { relname: "audit_events", relrowsecurity: true, relforcerowsecurity: true },
@@ -76,6 +76,7 @@ test("account and planning migrations install twelve tables with forced RLS", as
     { relname: "calculation_snapshots", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "commitments", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "execution_attempts", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "execution_dispatches", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "gateway_accounts", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "investment_intents", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "order_approvals", relrowsecurity: true, relforcerowsecurity: true },
@@ -105,7 +106,7 @@ test("migration reruns preserve existing records instead of reapplying the found
   const before = (await admin.query("SELECT count(*)::integer AS n FROM harborline.gateway_accounts")).rows;
   await runMigrations(connectionString, "test");
   expect((await admin.query("SELECT count(*)::integer AS n FROM harborline.gateway_accounts")).rows).toEqual(before);
-  expect((await admin.query("SELECT count(*)::integer AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 6 }]);
+  expect((await admin.query("SELECT count(*)::integer AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 7 }]);
 });
 
 test("runtime wrapper refuses a migration administrator connection", async () => {

@@ -251,9 +251,22 @@ export const executionAttempts = app.table("execution_attempts", {
 }, (table): PgTableExtraConfigValue[] => [
   unique("attempt_one_per_intent").on(table.intentId),
   unique("attempt_one_per_approval").on(table.approvalId),
+  unique("attempt_owned_identity").on(table.id, table.intentId, table.accountId),
   foreignKey({ columns: [table.approvalId, table.intentId, table.accountId], foreignColumns: [orderApprovals.id, orderApprovals.intentId, orderApprovals.accountId], name: "attempt_owned_approval_fk" }).onDelete("restrict"),
   check("attempt_fixture_valid", sql`${table.source}='contract_fixture' AND isfinite(${table.startedAt})`),
   pgPolicy("execution_attempts_owner", { for: "all", to: appRole,
+    using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`,
+    withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})` }),
+]).enableRLS();
+
+export const executionDispatches = app.table("execution_dispatches", {
+  attemptId: uuid("attempt_id").primaryKey(), accountId: uuid("account_id").notNull(), intentId: uuid("intent_id").notNull(),
+  source: varchar("source", { length: 32 }).$type<"contract_fixture">().notNull(),
+  claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull(),
+}, (table): PgTableExtraConfigValue[] => [
+  foreignKey({ columns: [table.attemptId, table.intentId, table.accountId], foreignColumns: [executionAttempts.id, executionAttempts.intentId, executionAttempts.accountId], name: "dispatch_owned_attempt_fk" }).onDelete("restrict"),
+  check("dispatch_fixture_valid", sql`${table.source}='contract_fixture' AND isfinite(${table.claimedAt})`),
+  pgPolicy("execution_dispatches_owner", { for: "all", to: appRole,
     using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`,
     withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})` }),
 ]).enableRLS();
