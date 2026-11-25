@@ -1,0 +1,579 @@
+{
+  "id": "3bc49ff8-0f0d-4107-9517-3946aa13a0a3",
+  "prevId": "4c37009f-9848-4045-9f74-a2ed320bc72d",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "harborline.commitments": {
+      "name": "commitments",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "commitment_status",
+          "typeSchema": "harborline",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'outstanding'"
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        }
+      },
+      "indexes": {
+        "commitments_account_due_date": {
+          "name": "commitments_account_due_date",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "due_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "commitments_account_id_planning_policies_account_id_fk": {
+          "name": "commitments_account_id_planning_policies_account_id_fk",
+          "tableFrom": "commitments",
+          "tableTo": "planning_policies",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "commitments_owner": {
+          "name": "commitments_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"commitments\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"commitments\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "commitment_label_nonempty": {
+          "name": "commitment_label_nonempty",
+          "value": "length(trim(\"harborline\".\"commitments\".\"label\")) > 0 AND \"harborline\".\"commitments\".\"label\" !~ '[[:cntrl:]]'"
+        },
+        "commitment_amount_valid": {
+          "name": "commitment_amount_valid",
+          "value": "\"harborline\".\"commitments\".\"amount\" > 0 AND \"harborline\".\"commitments\".\"amount\" <> 'NaN'::numeric AND \"harborline\".\"commitments\".\"amount\" = trunc(\"harborline\".\"commitments\".\"amount\", 2)"
+        },
+        "commitment_date_range": {
+          "name": "commitment_date_range",
+          "value": "\"harborline\".\"commitments\".\"due_date\" BETWEEN DATE '0001-01-01' AND DATE '9999-12-31'"
+        },
+        "commitment_revision_positive": {
+          "name": "commitment_revision_positive",
+          "value": "\"harborline\".\"commitments\".\"revision\" >= 1"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.gateway_accounts": {
+      "name": "gateway_accounts",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_ref_id": {
+          "name": "external_ref_id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_user_id": {
+          "name": "provider_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provisioning_state": {
+          "name": "provisioning_state",
+          "type": "provisioning_state",
+          "typeSchema": "harborline",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UNPROVISIONED'"
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "varchar(66)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wallet_addresses": {
+          "name": "wallet_addresses",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "active_operation_id": {
+          "name": "active_operation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_revision": {
+          "name": "policy_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gateway_accounts_owner_id_profiles_auth_user_id_fk": {
+          "name": "gateway_accounts_owner_id_profiles_auth_user_id_fk",
+          "tableFrom": "gateway_accounts",
+          "tableTo": "profiles",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "auth_user_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "gateway_accounts_owner_id_unique": {
+          "name": "gateway_accounts_owner_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "owner_id"
+          ]
+        },
+        "gateway_accounts_external_ref_id_unique": {
+          "name": "gateway_accounts_external_ref_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "external_ref_id"
+          ]
+        },
+        "gateway_accounts_provider_user_id_unique": {
+          "name": "gateway_accounts_provider_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "provider_user_id"
+          ]
+        }
+      },
+      "policies": {
+        "gateway_accounts_owner": {
+          "name": "gateway_accounts_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "\"harborline\".\"gateway_accounts\".\"owner_id\" = nullif(current_setting('harborline.owner_id', true), '')::uuid",
+          "withCheck": "\"harborline\".\"gateway_accounts\".\"owner_id\" = nullif(current_setting('harborline.owner_id', true), '')::uuid"
+        },
+        "gateway_accounts_key_lookup": {
+          "name": "gateway_accounts_key_lookup",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "harborline_key_store"
+          ],
+          "using": "\"harborline\".\"gateway_accounts\".\"owner_id\" = nullif(current_setting('harborline.owner_id', true), '')::uuid"
+        }
+      },
+      "checkConstraints": {
+        "external_ref_format": {
+          "name": "external_ref_format",
+          "value": "\"harborline\".\"gateway_accounts\".\"external_ref_id\" ~ '^[A-Za-z0-9_-]{1,64}$'"
+        },
+        "signer_public_key_format": {
+          "name": "signer_public_key_format",
+          "value": "\"harborline\".\"gateway_accounts\".\"public_key\" IS NULL OR \"harborline\".\"gateway_accounts\".\"public_key\" ~ '^(02|03)[0-9a-fA-F]{64}$'"
+        },
+        "wallet_addresses_object": {
+          "name": "wallet_addresses_object",
+          "value": "jsonb_typeof(\"harborline\".\"gateway_accounts\".\"wallet_addresses\") = 'object'"
+        },
+        "positive_policy_revision": {
+          "name": "positive_policy_revision",
+          "value": "\"harborline\".\"gateway_accounts\".\"policy_revision\" >= 1"
+        },
+        "ready_account_identity": {
+          "name": "ready_account_identity",
+          "value": "\"harborline\".\"gateway_accounts\".\"provisioning_state\" <> 'READY' OR (\"harborline\".\"gateway_accounts\".\"provider_user_id\" IS NOT NULL AND \"harborline\".\"gateway_accounts\".\"public_key\" IS NOT NULL AND \"harborline\".\"gateway_accounts\".\"wallet_addresses\" <> '{}'::jsonb)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.planning_policies": {
+      "name": "planning_policies",
+      "schema": "harborline",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "horizon_days": {
+          "name": "horizon_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "additional_buffer": {
+          "name": "additional_buffer",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "acknowledged_at": {
+          "name": "acknowledged_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "planning_policies_account_id_gateway_accounts_id_fk": {
+          "name": "planning_policies_account_id_gateway_accounts_id_fk",
+          "tableFrom": "planning_policies",
+          "tableTo": "gateway_accounts",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "planning_policies_owner": {
+          "name": "planning_policies_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"planning_policies\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"planning_policies\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "planning_horizon_range": {
+          "name": "planning_horizon_range",
+          "value": "\"harborline\".\"planning_policies\".\"horizon_days\" BETWEEN 1 AND 90"
+        },
+        "planning_buffer_valid": {
+          "name": "planning_buffer_valid",
+          "value": "\"harborline\".\"planning_policies\".\"additional_buffer\" >= 0 AND \"harborline\".\"planning_policies\".\"additional_buffer\" <> 'NaN'::numeric AND \"harborline\".\"planning_policies\".\"additional_buffer\" = trunc(\"harborline\".\"planning_policies\".\"additional_buffer\", 2)"
+        },
+        "planning_revision_positive": {
+          "name": "planning_revision_positive",
+          "value": "\"harborline\".\"planning_policies\".\"revision\" >= 1"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.profiles": {
+      "name": "profiles",
+      "schema": "harborline",
+      "columns": {
+        "auth_user_id": {
+          "name": "auth_user_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UTC'"
+        },
+        "pilot_enabled": {
+          "name": "pilot_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "eligibility_status": {
+          "name": "eligibility_status",
+          "type": "eligibility_status",
+          "typeSchema": "harborline",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UNKNOWN'"
+        },
+        "eligibility_checked_at": {
+          "name": "eligibility_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "profiles_owner": {
+          "name": "profiles_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "\"harborline\".\"profiles\".\"auth_user_id\" = nullif(current_setting('harborline.owner_id', true), '')::uuid",
+          "withCheck": "\"harborline\".\"profiles\".\"auth_user_id\" = nullif(current_setting('harborline.owner_id', true), '')::uuid"
+        }
+      },
+      "checkConstraints": {
+        "profile_timezone_nonempty": {
+          "name": "profile_timezone_nonempty",
+          "value": "length(trim(\"harborline\".\"profiles\".\"timezone\")) > 0"
+        },
+        "eligibility_requires_check": {
+          "name": "eligibility_requires_check",
+          "value": "\"harborline\".\"profiles\".\"eligibility_status\" = 'UNKNOWN' OR \"harborline\".\"profiles\".\"eligibility_checked_at\" IS NOT NULL"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline_private.signer_secrets": {
+      "name": "signer_secrets",
+      "schema": "harborline_private",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "encrypted_key": {
+          "name": "encrypted_key",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tag": {
+          "name": "tag",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "encryption_key_version": {
+          "name": "encryption_key_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "signer_secrets_account_id_gateway_accounts_id_fk": {
+          "name": "signer_secrets_account_id_gateway_accounts_id_fk",
+          "tableFrom": "signer_secrets",
+          "tableTo": "gateway_accounts",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "signer_secrets_owner": {
+          "name": "signer_secrets_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_key_store"
+          ],
+          "using": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline_private\".\"signer_secrets\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline_private\".\"signer_secrets\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "ciphertext_nonempty": {
+          "name": "ciphertext_nonempty",
+          "value": "octet_length(\"harborline_private\".\"signer_secrets\".\"encrypted_key\") > 0"
+        },
+        "nonce_96_bits": {
+          "name": "nonce_96_bits",
+          "value": "octet_length(\"harborline_private\".\"signer_secrets\".\"nonce\") = 12"
+        },
+        "tag_128_bits": {
+          "name": "tag_128_bits",
+          "value": "octet_length(\"harborline_private\".\"signer_secrets\".\"tag\") = 16"
+        },
+        "positive_encryption_key_version": {
+          "name": "positive_encryption_key_version",
+          "value": "\"harborline_private\".\"signer_secrets\".\"encryption_key_version\" >= 1"
+        }
+      },
+      "isRLSEnabled": true
+    }
+  },
+  "enums": {
+    "harborline.commitment_status": {
+      "name": "commitment_status",
+      "schema": "harborline",
+      "values": [
+        "outstanding",
+        "paid",
+        "removed"
+      ]
+    },
+    "harborline.eligibility_status": {
+      "name": "eligibility_status",
+      "schema": "harborline",
+      "values": [
+        "UNKNOWN",
+        "ELIGIBLE",
+        "INELIGIBLE"
+      ]
+    },
+    "harborline.provisioning_state": {
+      "name": "provisioning_state",
+      "schema": "harborline",
+      "values": [
+        "UNPROVISIONED",
+        "PROVISIONING",
+        "READY",
+        "FAILED"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

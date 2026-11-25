@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, customType, integer, jsonb, pgPolicy, pgRole, pgSchema, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+import { boolean, check, customType, date, index, integer, jsonb, numeric, pgPolicy, pgRole, pgSchema, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
 
 const app = pgSchema("harborline");
 const privateSchema = pgSchema("harborline_private");
@@ -58,6 +58,41 @@ export const signerSecrets = privateSchema.table("signer_secrets", {
   check("tag_128_bits", sql`octet_length(${table.tag}) = 16`),
   check("positive_encryption_key_version", sql`${table.encryptionKeyVersion} >= 1`),
   pgPolicy("signer_secrets_owner", { for: "all", to: keyRole,
+    using: sql`exists (select 1 from harborline.gateway_accounts a where a.id = ${table.accountId} and a.owner_id = ${owner})`,
+    withCheck: sql`exists (select 1 from harborline.gateway_accounts a where a.id = ${table.accountId} and a.owner_id = ${owner})` }),
+]).enableRLS();
+
+export const commitmentStatus = app.enum("commitment_status", ["outstanding", "paid", "removed"]);
+export const planningPolicies = app.table("planning_policies", {
+  accountId: uuid("account_id").primaryKey().references(() => gatewayAccounts.id, { onDelete: "restrict" }),
+  horizonDays: integer("horizon_days").notNull(),
+  additionalBuffer: numeric("additional_buffer", { precision: 38, scale: 18 }).notNull(),
+  revision: integer("revision").notNull().default(1),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }).notNull(),
+}, table => [
+  check("planning_horizon_range", sql`${table.horizonDays} BETWEEN 1 AND 90`),
+  check("planning_buffer_valid", sql`${table.additionalBuffer} >= 0 AND ${table.additionalBuffer} <> 'NaN'::numeric AND ${table.additionalBuffer} = trunc(${table.additionalBuffer}, 2)`),
+  check("planning_revision_positive", sql`${table.revision} >= 1`),
+  pgPolicy("planning_policies_owner", { for: "all", to: appRole,
+    using: sql`exists (select 1 from harborline.gateway_accounts a where a.id = ${table.accountId} and a.owner_id = ${owner})`,
+    withCheck: sql`exists (select 1 from harborline.gateway_accounts a where a.id = ${table.accountId} and a.owner_id = ${owner})` }),
+]).enableRLS();
+
+export const commitments = app.table("commitments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  accountId: uuid("account_id").notNull().references(() => planningPolicies.accountId, { onDelete: "restrict" }),
+  label: varchar("label", { length: 120 }).notNull(),
+  amount: numeric("amount", { precision: 38, scale: 18 }).notNull(),
+  dueDate: date("due_date", { mode: "string" }).notNull(),
+  status: commitmentStatus("status").notNull().default("outstanding"),
+  revision: integer("revision").notNull().default(1),
+}, table => [
+  index("commitments_account_due_date").on(table.accountId, table.dueDate),
+  check("commitment_label_nonempty", sql`length(trim(${table.label})) > 0 AND ${table.label} !~ '[[:cntrl:]]'`),
+  check("commitment_amount_valid", sql`${table.amount} > 0 AND ${table.amount} <> 'NaN'::numeric AND ${table.amount} = trunc(${table.amount}, 2)`),
+  check("commitment_date_range", sql`${table.dueDate} BETWEEN DATE '0001-01-01' AND DATE '9999-12-31'`),
+  check("commitment_revision_positive", sql`${table.revision} >= 1`),
+  pgPolicy("commitments_owner", { for: "all", to: appRole,
     using: sql`exists (select 1 from harborline.gateway_accounts a where a.id = ${table.accountId} and a.owner_id = ${owner})`,
     withCheck: sql`exists (select 1 from harborline.gateway_accounts a where a.id = ${table.accountId} and a.owner_id = ${owner})` }),
 ]).enableRLS();
