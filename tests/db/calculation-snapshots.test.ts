@@ -164,7 +164,7 @@ test("rerunning the additive migration preserves both immutable evidence and cal
   const snapshot = await store.capture(context, { expectedRevision: 2, balanceSnapshotId: balance.id });
   await runMigrations(connectionString, "test");
   expect(await store.get(context, snapshot.id)).toEqual(snapshot);
-  expect((await admin.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 6 }]);
+  expect((await admin.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 7 }]);
 });
 
 test("queued balance writes preserve submitted identity and amount when the caller reuses its object", async () => {
