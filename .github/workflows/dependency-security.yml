@@ -1,0 +1,50 @@
+name: Dependency security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependency-security-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Dependency vulnerability audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm from package.json
+        uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          run_install: false
+
+      - name: Set up Node from .nvmrc
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+
+      # Keep repository pnpm hooks, configDependencies and audit ignores out
+      # of the auditor's working directory. Read only the committed lock blob.
+      # Registry errors must fail the check; never add --ignore-registry-errors.
+      - name: Audit locked dependencies for high and critical vulnerabilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          audit_dir="$(mktemp -d "${RUNNER_TEMP}/harborline-dependency-audit.XXXXXX")"
+          trap 'rm -rf -- "$audit_dir"' EXIT
+          git show HEAD:pnpm-lock.yaml > "$audit_dir/pnpm-lock.yaml"
+          printf '%s\n' '{"name":"harborline-dependency-audit","private":true}' > "$audit_dir/package.json"
+          printf '%s\n' 'packages: []' > "$audit_dir/pnpm-workspace.yaml"
+          cd "$audit_dir"
+          pnpm audit --audit-level high --ignore-pnpmfile
