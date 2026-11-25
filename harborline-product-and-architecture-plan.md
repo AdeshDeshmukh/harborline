@@ -1173,6 +1173,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 - **Branch / labels:** `feat/hl-19-quote-contract`; `type:feature`, `area:gateway`, `area:orders`.
 - **Prerequisite:** HL-08, HL-13, HL-18 and verified debit/fee semantics from HL-06.
+- **Execution note (25 November 2026):** current quote schemas provide estimates and fees but do not establish an enforceable provider maximum debit or explicit DeFi expiry. Local normalization and bounded fixture tests can proceed; real quote authorization remains blocked. See [quote contract status](docs/quote-contracts.md).
 - **Scope:** quote schemas/normalization and contract fixtures; distinguish nonbinding preview from executable terms; normalize fee denomination and enforceable maximum debit with expiry evidence.
 - **Boundary:** no invented slippage parameter or assumed fee inclusion. Unknown bounds return a blocked result.
 - **Acceptance:** missing fees, excess maximum debit, stale terms, wrong venue/chain, and schema changes fail closed. Exact valid terms remain decimal strings across the application boundary.
