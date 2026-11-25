@@ -1048,6 +1048,8 @@ The phase letters here describe review batches; the original numbered schedule i
 - **Boundary:** no deployment, production migration, live credentials, or real provider mutations in CI.
 - **Acceptance:** workflow runs on PRs and `main`; required jobs pass on Node 24. Add feature test jobs in the PR introducing their test suite, rather than placeholder commands that report success without tests.
 
+**CI follow-up after HL-23:** a separate `ci/dependency-review` maintenance slice adds a read-only full-lockfile vulnerability audit with a high/critical blocking threshold. GitHub graph coverage was unavailable in the local read checks, so this uses pnpm's registry audit rather than claiming a verified dependency diff. No dependency upgrades, automatic PRs, repository settings or deployment are included. See [dependency security decisions and limits](./docs/dependency-security.md). Browser checks remain HL-29/30; HL-24 resumes after this focused follow-up.
+
 ### 18.5 Phase B — Feasibility and contracts
 
 #### HL-05 — `docs: record submission requirements and review access`
