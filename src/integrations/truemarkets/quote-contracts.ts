@@ -51,6 +51,7 @@ function fingerprint(quote: Omit<DefiQuote, "fingerprint">) {
     quote.baseDecimals, quote.baseIdentifier, quote.quoteIdentifier, quote.requestedAmount, quote.chain, quote.venue,
     quote.inputAmount, quote.expectedOutput, quote.feeAmount, quote.feeAssetId, quote.issues])).digest("hex");
 }
+export function normalizeQuoteRoute(context: QuoteContext): QuoteIdentity { return guarded(()=>Object.freeze(identity(context))); }
 export function normalizePricePreview(value: unknown, context: QuoteContext): PricePreview {
   return guarded(() => {
     const route = identity(context), row = exact(value, ["qty", "price", "notional", "fee"]);

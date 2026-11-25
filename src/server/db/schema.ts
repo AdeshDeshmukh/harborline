@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import { bigserial, boolean, check, customType, date, foreignKey, index, integer, jsonb, numeric, pgPolicy, pgRole, pgSchema, timestamp, unique, uuid, varchar, type AnyPgColumn, type PgTableExtraConfigValue } from "drizzle-orm/pg-core";
 import type { CalculationInput } from "../../features/planning/snapshot-types";
 import type { AllowanceResult } from "../../features/planning/types";
+import type { ReviewTerms } from "../../features/orders/review-types";
 
 const app = pgSchema("harborline");
 const privateSchema = pgSchema("harborline_private");
@@ -197,4 +198,24 @@ export const auditEvents=app.table("audit_events",{
   check("audit_metadata_bounded",sql`jsonb_typeof(${table.metadata})='object' AND octet_length(${table.metadata}::text)<=4096`),
   check("audit_event_type_valid",sql`${table.eventType} ~ '^[a-z][a-z0-9_]{0,63}$' AND isfinite(${table.occurredAt})`),
   pgPolicy("audit_events_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`,withCheck:sql`(${table.actorId} IS NULL OR ${table.actorId}=${owner}) AND exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`}),
+]).enableRLS();
+
+export const orderReviews = app.table("order_reviews", {
+  id:uuid("id").primaryKey().defaultRandom(),
+  accountId:uuid("account_id").notNull(),intentId:uuid("intent_id").notNull(),
+  revision:integer("revision").notNull(),
+  terms:jsonb("terms").$type<ReviewTerms>().notNull(),termsHash:varchar("terms_hash",{length:64}).notNull(),
+  maximumDebit:numeric("maximum_debit",{precision:38,scale:18}).notNull(),
+  payloadsEncrypted:bytea("payloads_encrypted").notNull(),nonce:bytea("nonce").notNull(),tag:bytea("tag").notNull(),
+  encryptionKeyVersion:integer("encryption_key_version").notNull(),
+  createdAt:timestamp("created_at",{withTimezone:true}).notNull(),expiresAt:timestamp("expires_at",{withTimezone:true}).notNull(),
+}, (table):PgTableExtraConfigValue[]=>[
+  unique("review_intent_revision").on(table.intentId,table.revision),
+  foreignKey({columns:[table.intentId,table.accountId],foreignColumns:[investmentIntents.id,investmentIntents.accountId],name:"review_owned_intent_fk"}).onDelete("restrict"),
+  check("review_positive_revisions",sql`${table.revision}>0 AND ${table.encryptionKeyVersion}>0`),
+  check("review_terms_bounded",sql`jsonb_typeof(${table.terms})='object' AND octet_length(${table.terms}::text)<=65536 AND ${table.termsHash} ~ '^[0-9a-f]{64}$'`),
+  check("review_debit_valid",sql`${table.maximumDebit}>0 AND ${table.maximumDebit}<>'NaN'::numeric AND ${table.maximumDebit}=trunc(${table.maximumDebit},6)`),
+  check("review_ciphertext_bounded",sql`octet_length(${table.payloadsEncrypted}) BETWEEN 1 AND 2200000 AND octet_length(${table.nonce})=12 AND octet_length(${table.tag})=16`),
+  check("review_expiry_bounded",sql`isfinite(${table.createdAt}) AND isfinite(${table.expiresAt}) AND ${table.expiresAt}>${table.createdAt} AND ${table.expiresAt}<=${table.createdAt}+interval '20 seconds'`),
+  pgPolicy("order_reviews_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`,withCheck:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`}),
 ]).enableRLS();

@@ -1,0 +1,10 @@
+import { createHash } from "node:crypto";
+import { SOLANA_USDC_MINT, type SupportedAssets } from "../../src/integrations/truemarkets/read-types";
+import type { QuoteContext } from "../../src/integrations/truemarkets/quote-types";
+export const instant = "2026-11-25T12:00:00.000Z";
+const stock = { id:"11111111-1111-4111-8111-111111111111", address:"11111111111111111111111111111111", symbol:"SAMPLE", name:"Sample tokenized stock", decimals:6, chain:"solana", venue:"defi", type:"spot", assetClass:"stock", stable:false, tradeable:true } as const;
+export const assets: SupportedAssets = { stock, cash:{...stock, id:"22222222-2222-4222-8222-222222222222", address:SOLANA_USDC_MINT, symbol:"USDC", name:"USDC", assetClass:"crypto", stable:true, tradeable:false} };
+export const quoteContext: QuoteContext = { source:"contract_fixture", assets, observedAt:instant, baseIdentifier:"SAMPLE", quoteIdentifier:"USDC", side:"buy", qtyUnit:"quote", requestedAmount:"100" };
+export const payload = (text = '{"fixture":"unsigned-only"}\n') => ({payload:text, digest:createHash("sha256").update(text).digest("hex")});
+export const response = () => ({ order_id:"fixture_order_1", status:"initialized", venue:"defi", payloads:[payload()], quote:{base_asset:"SAMPLE",quote_asset:"USDC",qty:"100",qty_out:"0.5",fee:"0.5",fee_asset:"USDC",issues:[] as string[]} });
+export const binding = { accountId:"33333333-3333-4333-8333-333333333333", intentId:"44444444-4444-4444-8444-444444444444", generation:1, policyRevision:2, calculationId:"55555555-5555-4555-8555-555555555555" };

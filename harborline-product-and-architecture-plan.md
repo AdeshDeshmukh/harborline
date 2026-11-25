@@ -1190,6 +1190,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 - **Branch / labels:** `feat/hl-21-order-preparation`; `type:feature`, `area:orders`, `area:gateway`.
 - **Prerequisite:** HL-16, HL-18–20; exact forced-DeFi create behavior verified before real calls.
+- **Execution note (25 November 2026):** immutable review storage and preparation can be verified with contract fixtures. The runtime endpoint and provider-mode adapter remain blocked until HL-18 eligibility/customer/route evidence and HL-19 debit/expiry semantics are verified; local tests do not establish live readiness. See [preparation boundaries](docs/order-preparation.md).
 - **Scope:** `prepare.server.ts`, terms hashing, provider order adapter and investment-review endpoint; acquire slot, fetch fresh owned inputs, prepare forced-DeFi order, persist immutable terms and payloads, fence late responses.
 - **Boundary:** no signature or execute call. Unexpected immediate execution becomes an incident/reconciliation record rather than normal review.
 - **Acceptance:** empty-ID 201, malformed/wrong venue response, timeout, changed policy, expired preparation, late response/new-intent race and unsigned cleanup cases match section 8; cannot restore a superseded review.
