@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigserial, boolean, check, customType, date, foreignKey, index, integer, jsonb, numeric, pgPolicy, pgRole, pgSchema, timestamp, unique, uuid, varchar } from "drizzle-orm/pg-core";
+import { bigserial, boolean, check, customType, date, foreignKey, index, integer, jsonb, numeric, pgPolicy, pgRole, pgSchema, timestamp, unique, uuid, varchar, type AnyPgColumn, type PgTableExtraConfigValue } from "drizzle-orm/pg-core";
 import type { CalculationInput } from "../../features/planning/snapshot-types";
 import type { AllowanceResult } from "../../features/planning/types";
 
@@ -20,7 +20,7 @@ export const profiles = app.table("profiles", {
   eligibilityStatus: eligibilityStatus("eligibility_status").notNull().default("UNKNOWN"),
   eligibilityCheckedAt: timestamp("eligibility_checked_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [
+}, (table): PgTableExtraConfigValue[] => [
   check("profile_timezone_nonempty", sql`length(trim(${table.timezone})) > 0`),
   check("eligibility_requires_check", sql`${table.eligibilityStatus} = 'UNKNOWN' OR ${table.eligibilityCheckedAt} IS NOT NULL`),
   pgPolicy("profiles_owner", { for: "all", to: appRole, using: sql`${table.authUserId} = ${owner}`, withCheck: sql`${table.authUserId} = ${owner}` }),
@@ -37,7 +37,8 @@ export const gatewayAccounts = app.table("gateway_accounts", {
   activeOperationId: uuid("active_operation_id"),
   policyRevision: integer("policy_revision").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [
+}, (table): PgTableExtraConfigValue[] => [
+  foreignKey({columns:[table.activeOperationId,table.id],foreignColumns:[investmentIntents.id,investmentIntents.accountId],name:"account_owned_active_operation_fk"}).onDelete("restrict"),
   check("external_ref_format", sql`${table.externalRefId} ~ '^[A-Za-z0-9_-]{1,64}$'`),
   check("signer_public_key_format", sql`${table.publicKey} IS NULL OR ${table.publicKey} ~ '^(02|03)[0-9a-fA-F]{64}$'`),
   check("wallet_addresses_object", sql`jsonb_typeof(${table.walletAddresses}) = 'object'`),
@@ -54,7 +55,7 @@ export const signerSecrets = privateSchema.table("signer_secrets", {
   tag: bytea("tag").notNull(),
   encryptionKeyVersion: integer("encryption_key_version").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, table => [
+}, (table): PgTableExtraConfigValue[] => [
   check("ciphertext_nonempty", sql`octet_length(${table.encryptedKey}) > 0`),
   check("nonce_96_bits", sql`octet_length(${table.nonce}) = 12`),
   check("tag_128_bits", sql`octet_length(${table.tag}) = 16`),
@@ -71,7 +72,7 @@ export const planningPolicies = app.table("planning_policies", {
   additionalBuffer: numeric("additional_buffer", { precision: 38, scale: 18 }).notNull(),
   revision: integer("revision").notNull().default(1),
   acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }).notNull(),
-}, table => [
+}, (table): PgTableExtraConfigValue[] => [
   check("planning_horizon_range", sql`${table.horizonDays} BETWEEN 1 AND 90`),
   check("planning_buffer_valid", sql`${table.additionalBuffer} >= 0 AND ${table.additionalBuffer} <> 'NaN'::numeric AND ${table.additionalBuffer} = trunc(${table.additionalBuffer}, 2)`),
   check("planning_revision_positive", sql`${table.revision} >= 1`),
@@ -88,7 +89,7 @@ export const commitments = app.table("commitments", {
   dueDate: date("due_date", { mode: "string" }).notNull(),
   status: commitmentStatus("status").notNull().default("outstanding"),
   revision: integer("revision").notNull().default(1),
-}, table => [
+}, (table): PgTableExtraConfigValue[] => [
   index("commitments_account_due_date").on(table.accountId, table.dueDate),
   check("commitment_label_nonempty", sql`length(trim(${table.label})) > 0 AND ${table.label} !~ '[[:cntrl:]]'`),
   check("commitment_amount_valid", sql`${table.amount} > 0 AND ${table.amount} <> 'NaN'::numeric AND ${table.amount} = trunc(${table.amount}, 2)`),
@@ -110,7 +111,7 @@ export const balanceSnapshots = app.table("balance_snapshots", {
   venue: varchar("venue", { length: 120 }).notNull(),
   available: numeric("available", { precision: 38, scale: 18 }).notNull(),
   observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
-}, table => [
+}, (table): PgTableExtraConfigValue[] => [
   unique("balance_snapshot_account_identity").on(table.id, table.accountId),
   unique("balance_snapshot_sequence_unique").on(table.sequence),
   index("balance_snapshot_account_sequence").on(table.accountId, table.sequence),
@@ -133,7 +134,8 @@ export const calculationSnapshots = app.table("calculation_snapshots", {
   result: jsonb("result").$type<AllowanceResult>().notNull(),
   horizonEnd: date("horizon_end", { mode: "string" }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-}, table => [
+}, (table): PgTableExtraConfigValue[] => [
+  unique("calculation_snapshot_account_identity").on(table.id,table.accountId),
   foreignKey({ columns: [table.balanceSnapshotId, table.accountId], foreignColumns: [balanceSnapshots.id, balanceSnapshots.accountId], name: "calculation_owned_balance_fk" }).onDelete("restrict"),
   index("calculation_snapshot_account").on(table.accountId),
   check("calculation_revision_positive", sql`${table.policyRevision} >= 1`),
@@ -145,4 +147,54 @@ export const calculationSnapshots = app.table("calculation_snapshots", {
   pgPolicy("calculation_snapshots_owner", { for: "all", to: appRole,
     using: sql`exists (select 1 from harborline.gateway_accounts a where a.id = ${table.accountId} and a.owner_id = ${owner})`,
     withCheck: sql`exists (select 1 from harborline.gateway_accounts a where a.id = ${table.accountId} and a.owner_id = ${owner})` }),
+]).enableRLS();
+
+export const intentState = app.enum("intent_state", ["DRAFT","PREPARING","REVIEW_READY","SUBMITTING","PENDING","COMPLETE","EXPIRED","REJECTED","ABANDONED","UNKNOWN","FAILED","CANCELED","MANUAL_REVIEW"]);
+export const operationKind = app.enum("operation_kind", ["buy","sell","exit"]);
+export const quantityUnit = app.enum("quantity_unit", ["base","quote"]);
+export const preparationSafety = app.enum("preparation_safety", ["unverified","contract_fixture"]);
+export const investmentIntents = app.table("investment_intents", {
+  id:uuid("id").primaryKey().defaultRandom(),
+  accountId:uuid("account_id").notNull().references(():AnyPgColumn=>gatewayAccounts.id,{onDelete:"restrict"}),
+  operationKind:operationKind("operation_kind").notNull(),assetId:uuid("asset_id").notNull(),
+  requestedQty:numeric("requested_qty",{precision:38,scale:18}).notNull(),qtyUnit:quantityUnit("qty_unit").notNull(),
+  calculationId:uuid("calculation_id"),policyRevision:integer("policy_revision").notNull(),
+  requestKey:varchar("request_key",{length:64}).notNull(),requestHash:varchar("request_hash",{length:64}).notNull(),
+  state:intentState("state").notNull().default("DRAFT"),revision:integer("revision").notNull().default(1),
+  preparationGeneration:integer("preparation_generation").notNull().default(0),
+  preparationLeaseUntil:timestamp("preparation_lease_until",{withTimezone:true}),
+  reviewExpiresAt:timestamp("review_expires_at",{withTimezone:true}),providerOrderId:varchar("provider_order_id",{length:128}).unique(),
+  preparationSafety:preparationSafety("preparation_safety").notNull().default("unverified"),
+  effectsPossible:boolean("effects_possible").notNull().default(false),
+  createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),updatedAt:timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
+},(table): PgTableExtraConfigValue[]=>[
+  unique("intent_account_identity").on(table.id,table.accountId),unique("intent_account_request_key").on(table.accountId,table.requestKey),
+  index("intent_account_created").on(table.accountId,table.createdAt),
+  foreignKey({columns:[table.calculationId,table.accountId],foreignColumns:[calculationSnapshots.id,calculationSnapshots.accountId],name:"intent_owned_calculation_fk"}).onDelete("restrict"),
+  check("intent_quantity_valid",sql`${table.requestedQty}>0 AND ${table.requestedQty}<>'NaN'::numeric`),
+  check("intent_request_key_valid",sql`${table.requestKey} ~ '^[A-Za-z0-9_-]{1,64}$' AND ${table.requestHash} ~ '^[0-9a-f]{64}$'`),
+  check("intent_revisions_valid",sql`${table.revision}>=1 AND ${table.policyRevision}>=1 AND ${table.preparationGeneration}>=0`),
+  check("intent_units_valid",sql`(${table.operationKind}='buy' AND ${table.qtyUnit}='quote' AND ${table.calculationId} IS NOT NULL) OR (${table.operationKind}<>'buy' AND ${table.qtyUnit}='base')`),
+  check("intent_cash_precision",sql`${table.operationKind}='sell' OR ${table.requestedQty}=trunc(${table.requestedQty},6)`),
+  check("intent_draft_unstarted",sql`${table.state}<>'DRAFT' OR (${table.preparationGeneration}=0 AND ${table.providerOrderId} IS NULL AND NOT ${table.effectsPossible})`),
+  check("intent_preparation_lease",sql`${table.state}<>'PREPARING' OR (${table.preparationLeaseUntil} IS NOT NULL AND ${table.preparationGeneration}>0)`),
+  check("intent_review_fields",sql`${table.state}<>'REVIEW_READY' OR (${table.providerOrderId} IS NOT NULL AND ${table.reviewExpiresAt} IS NOT NULL)`),
+  check("intent_fixture_states",sql`${table.state} NOT IN ('REVIEW_READY','SUBMITTING') OR ${table.preparationSafety}='contract_fixture'`),
+  check("intent_effects_fenced",sql`${table.state} NOT IN ('SUBMITTING','PENDING','UNKNOWN','COMPLETE','FAILED','CANCELED','MANUAL_REVIEW') OR ${table.effectsPossible}`),
+  check("intent_timestamps_finite",sql`isfinite(${table.createdAt}) AND isfinite(${table.updatedAt}) AND (${table.preparationLeaseUntil} IS NULL OR isfinite(${table.preparationLeaseUntil})) AND (${table.reviewExpiresAt} IS NULL OR isfinite(${table.reviewExpiresAt}))`),
+  check("intent_provider_id_valid",sql`${table.providerOrderId} IS NULL OR ${table.providerOrderId} ~ '^[A-Za-z0-9_-]{1,128}$'`),
+  pgPolicy("investment_intents_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`,withCheck:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`}),
+]).enableRLS();
+export const auditEvents=app.table("audit_events",{
+  id:uuid("id").primaryKey().defaultRandom(),accountId:uuid("account_id").notNull().references(()=>gatewayAccounts.id,{onDelete:"restrict"}),
+  intentId:uuid("intent_id"),actorId:uuid("actor_id").references(()=>profiles.authUserId,{onDelete:"restrict"}),
+  sequence:bigserial("sequence",{mode:"bigint"}).notNull().unique(),eventType:varchar("event_type",{length:64}).notNull(),
+  metadata:jsonb("redacted_metadata").$type<Record<string,string|number|boolean|null>>().notNull().default({}),
+  occurredAt:timestamp("occurred_at",{withTimezone:true}).notNull().defaultNow(),
+},(table): PgTableExtraConfigValue[]=>[
+  foreignKey({columns:[table.intentId,table.accountId],foreignColumns:[investmentIntents.id,investmentIntents.accountId],name:"audit_owned_intent_fk"}).onDelete("restrict"),
+  index("audit_account_intent_sequence").on(table.accountId,table.intentId,table.sequence),
+  check("audit_metadata_bounded",sql`jsonb_typeof(${table.metadata})='object' AND octet_length(${table.metadata}::text)<=4096`),
+  check("audit_event_type_valid",sql`${table.eventType} ~ '^[a-z][a-z0-9_]{0,63}$' AND isfinite(${table.occurredAt})`),
+  pgPolicy("audit_events_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`,withCheck:sql`(${table.actorId} IS NULL OR ${table.actorId}=${owner}) AND exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`}),
 ]).enableRLS();

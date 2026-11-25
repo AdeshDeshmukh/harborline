@@ -1,3 +1,4 @@
+import {seedActiveOperation} from "../fixtures/active-operation";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
@@ -134,13 +135,13 @@ test("failed revision update rolls back the commitment write and exposes no SQL 
 
 test("active account operations block edits while keeping the current plan readable", async () => {
   const owner = await context(); await service.savePolicy(owner, policy());
-  await admin.query("UPDATE harborline.gateway_accounts SET active_operation_id=$1 WHERE id=$2", [randomUUID(), owner.accountId]);
+  await seedActiveOperation(admin, owner.accountId);
   await expect(service.createCommitment(owner, bill())).rejects.toMatchObject({ code: "operation_in_progress" });
   expect(await service.get(owner)).toMatchObject({ revision: 2, commitments: [] });
 });
 
-test("migration reruns preserve saved plans and the three migration journal entries", async () => {
+test("migration reruns preserve saved plans and the four migration journal entries", async () => {
   const owner = await context(), saved = await service.savePolicy(owner, policy());
   await runMigrations(connectionString, "test"); expect(await service.get(owner)).toEqual(saved);
-  expect((await admin.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 3 }]);
+  expect((await admin.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 4 }]);
 });

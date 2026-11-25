@@ -1,3 +1,4 @@
+import {seedActiveOperation} from "../fixtures/active-operation";
 import { randomUUID } from "node:crypto";
 import { Pool } from "pg";
 import { afterAll, beforeAll, expect, test, vi } from "vitest";
@@ -163,7 +164,7 @@ test("rerunning the additive migration preserves both immutable evidence and cal
   const snapshot = await store.capture(context, { expectedRevision: 2, balanceSnapshotId: balance.id });
   await runMigrations(connectionString, "test");
   expect(await store.get(context, snapshot.id)).toEqual(snapshot);
-  expect((await admin.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 3 }]);
+  expect((await admin.query("SELECT count(*)::int AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 4 }]);
 });
 
 test("queued balance writes preserve submitted identity and amount when the caller reuses its object", async () => {
@@ -204,7 +205,7 @@ test("latest snapshot lookup is owner-scoped and does not append or supersede ev
 
 test("active operations block new capture; failed insertion redacts details and leaves no partial calculation", async () => {
   const { context, balance } = await initialized();
-  await admin.query("UPDATE harborline.gateway_accounts SET active_operation_id=$1 WHERE id=$2", [randomUUID(), context.accountId]);
+  await seedActiveOperation(admin, context.accountId);
   await expect(store.capture(context, { expectedRevision: 2, balanceSnapshotId: balance.id })).rejects.toMatchObject({ code: "operation_in_progress" });
   await admin.query("UPDATE harborline.gateway_accounts SET active_operation_id=NULL WHERE id=$1", [context.accountId]);
   await admin.query(`CREATE FUNCTION harborline.test_fail_snapshot() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'private synthetic detail'; END $$`);
