@@ -13,11 +13,19 @@ export type ReviewCompletion = {intentId:string;expectedRevision:number;generati
 export type Incident = {intentId:string;expectedRevision:number;generation:number;reason:"quote_only"|"invalid_response"|"unexpected_execution"|"timeout"|"invalid_terms";providerOrderId:string|null};
 type Tx=Parameters<Parameters<ReturnType<typeof getDatabase>["withOwner"]>[1]>[0];
 type Intent=typeof investmentIntents.$inferSelect;
-type StoredReview=typeof orderReviews.$inferSelect;
+type StoredReview=Pick<typeof orderReviews.$inferSelect,"intentId"|"revision"|"terms"|"termsHash"|"maximumDebit"|"expiresAt">;
 function view(row:StoredReview):ReviewView {
-  if(hashReviewTerms(row.terms)!==row.termsHash)throw new ReviewError("unavailable");
-  return Object.freeze({operationKind:"buy",feeTreatment:row.terms.bounds.feeTreatment,blockingReasons:Object.freeze(["fixture_only"] as const),intentId:row.intentId,reviewRevision:row.revision,termsHash:row.termsHash,source:"contract_fixture",providerOrderId:row.terms.providerOrderId,quote:row.terms.quote,maximumDebit:parseAmount(row.maximumDebit),localExpiresAt:row.expiresAt.toISOString(),cash:row.terms.cash,canApprove:false,canExecute:false});
+  const terms=row.terms,q=terms.quote,c=terms.cash;
+  if(terms.version!==1||terms.source!=="contract_fixture"||q.source!=="contract_fixture"||q.kind!=="defi_quote_information"||hashReviewTerms(terms)!==row.termsHash||
+    parseAmount(row.maximumDebit)!==parseAmount(terms.bounds.maximumDebit)||row.expiresAt.getTime()!==Date.parse(terms.bounds.validUntil)||
+    !["added_to_input","included_in_input"].includes(terms.bounds.feeTreatment))throw new ReviewError("unavailable");
+  // Explicit display fields only: unknown stored metadata is neither part of
+  // this DTO nor permission to serialize future internal fields to a browser.
+  const quote=Object.freeze({source:q.source,observedAt:q.observedAt,stockId:q.stockId,stockAddress:q.stockAddress,cashId:q.cashId,baseDecimals:q.baseDecimals,baseIdentifier:q.baseIdentifier,quoteIdentifier:q.quoteIdentifier,requestedAmount:q.requestedAmount,chain:q.chain,venue:q.venue,kind:q.kind,inputAmount:q.inputAmount,expectedOutput:q.expectedOutput,feeAmount:q.feeAmount,feeAssetId:q.feeAssetId,issues:Object.freeze([...q.issues]),fingerprint:q.fingerprint,canAuthorize:false as const});
+  const cash=Object.freeze({available:parseAmount(c.available),commitments:parseAmount(c.commitments),buffer:parseAmount(c.buffer),debitBudget:parseAmount(c.debitBudget),afterMaximumDebit:parseAmount(c.afterMaximumDebit)});
+  return Object.freeze({operationKind:"buy",feeTreatment:terms.bounds.feeTreatment,blockingReasons:Object.freeze(["fixture_only"] as const),intentId:row.intentId,reviewRevision:row.revision,termsHash:row.termsHash,source:"contract_fixture",providerOrderId:terms.providerOrderId,quote,maximumDebit:parseAmount(row.maximumDebit),localExpiresAt:row.expiresAt.toISOString(),cash,canApprove:false,canExecute:false});
 }
+export { view as projectStoredReview };
 export function createReviewRepository(database:ReturnType<typeof getDatabase>,options:{clock:()=>Date;vault:ReturnType<typeof createReviewVault>}) {
   async function transaction<T>(context:OwnerContext,intentId:string,work:(tx:Tx,account:typeof gatewayAccounts.$inferSelect,intent:Intent,now:Date)=>Promise<T>):Promise<T>{
     if(!isUuid(intentId))throw new ReviewError("invalid_request");
