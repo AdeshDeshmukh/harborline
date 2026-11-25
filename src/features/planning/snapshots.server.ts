@@ -136,6 +136,15 @@ export function createCalculationStore(database = getDatabase(), clock: () => Da
         return loadSnapshot(tx, account.id, id);
       });
     },
+    async latest(context: OwnerContext): Promise<CalculationSnapshot | null> {
+      return transaction(context, async tx => {
+        const account = await ownedAccount(tx, context, false);
+        const [row] = await tx.select({ id: calculationSnapshots.id }).from(calculationSnapshots)
+          .where(eq(calculationSnapshots.accountId, account.id))
+          .orderBy(desc(calculationSnapshots.createdAt), desc(calculationSnapshots.id)).limit(1);
+        return row ? loadSnapshot(tx, account.id, row.id) : null;
+      });
+    },
     async status(context: OwnerContext, id: string): Promise<CalculationStatus> {
       validId(id);
       return transaction(context, async tx => {

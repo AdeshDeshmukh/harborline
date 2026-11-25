@@ -191,6 +191,17 @@ test("historical retrieval does not depend on validity of the current profile ti
   await expect(store.status(context, snapshot.id)).rejects.toMatchObject({ code: "unavailable" });
 });
 
+test("latest snapshot lookup is owner-scoped and does not append or supersede evidence", async () => {
+  const { context, balance } = await initialized();
+  expect(await store.latest(context)).toBeNull();
+  const snapshot = await store.capture(context, { expectedRevision: 2, balanceSnapshotId: balance.id });
+  const before = (await admin.query("SELECT (SELECT count(*) FROM harborline.balance_snapshots) AS b, (SELECT count(*) FROM harborline.calculation_snapshots) AS c")).rows;
+  expect(await store.latest(context)).toEqual(snapshot);
+  expect(await store.latest(await owner())).toBeNull();
+  expect((await admin.query("SELECT (SELECT count(*) FROM harborline.balance_snapshots) AS b, (SELECT count(*) FROM harborline.calculation_snapshots) AS c")).rows).toEqual(before);
+  expect((await store.status(context, snapshot.id)).current).toBe(true);
+});
+
 test("active operations block new capture; failed insertion redacts details and leaves no partial calculation", async () => {
   const { context, balance } = await initialized();
   await admin.query("UPDATE harborline.gateway_accounts SET active_operation_id=$1 WHERE id=$2", [randomUUID(), context.accountId]);
