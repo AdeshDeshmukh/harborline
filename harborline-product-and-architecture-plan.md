@@ -1164,6 +1164,7 @@ The phase letters here describe review batches; the original numbered schedule i
 
 - **Branch / labels:** `feat/hl-18-assets-balances`; `type:feature`, `area:gateway`.
 - **Prerequisite:** HL-07, HL-08, HL-12; geography method resolved in HL-06.
+- **Execution note (25 November 2026):** geography/onboarding guidance, the exact stock/USDC quote relationship, and live account readiness remain unverified. Local read contracts and labeled fixture planning can be tested independently; full HL-18 and live activation remain gated. See [asset/balance contract status](docs/asset-balance-contracts.md).
 - **Scope:** catalog/balance/eligibility adapters, schemas, `/api/assets`, `/api/account/balance`, funding instructions and freshness handling. Connect owned confirmed balances to planning refresh and snapshots.
 - **Boundary:** one verified network/USDC identity; never combine chains, count pending income, or subtract provider holds twice. Funding instructions do not authorize a deposit.
 - **Acceptance:** wrong chain/listing, restrictions, stale/unavailable balance and malformed decimals block affected actions; correct available balance feeds the shared calculation; cross-user balance access fails.

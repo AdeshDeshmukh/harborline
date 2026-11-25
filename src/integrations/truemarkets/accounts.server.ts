@@ -1,4 +1,5 @@
 import "server-only";
+import { isSolanaAddress } from "./solana-address";
 import { isUuid } from "../../server/env";
 export type Customer = Readonly<{ providerUserId: string; externalRefId: string; walletAddresses: { solana?: string; evm?: string } }>;
 export type AccountsTransport = (method: "GET" | "POST", path: string, body?: unknown) => Promise<{ status: number; body: unknown }>;
@@ -42,18 +43,8 @@ function customer(value: unknown, expectedReference: string): Customer {
   for (const value of row.wallets) {
     const wallet = object(value), chain = wallet.chain_family;
     if ((chain !== "solana" && chain !== "evm") || walletAddresses[chain] !== undefined || typeof wallet.address !== "string" ||
-      !(chain === "evm" ? /^0x[0-9a-fA-F]{40}$/.test(wallet.address) : solanaAddress(wallet.address))) throw new AccountsContractError();
+      !(chain === "evm" ? /^0x[0-9a-fA-F]{40}$/.test(wallet.address) : isSolanaAddress(wallet.address))) throw new AccountsContractError();
     walletAddresses[chain] = wallet.address;
   }
   return Object.freeze({ providerUserId: row.user_id, externalRefId: expectedReference, walletAddresses: Object.freeze(walletAddresses) });
-}
-
-function solanaAddress(value: string) {
-  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value)) return false;
-  const alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-  let number = BigInt(0);
-  for (const character of value) number = number * BigInt(58) + BigInt(alphabet.indexOf(character));
-  let bytes = value.match(/^1*/)?.[0].length ?? 0;
-  while (number > BigInt(0)) { bytes++; number >>= BigInt(8); }
-  return bytes === 32;
 }

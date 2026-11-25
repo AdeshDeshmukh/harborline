@@ -1,0 +1,28 @@
+{
+  "source": "public_provider_observation",
+  "environment": "local-public-read",
+  "observed_at": "2026-11-25T11:58:00.853027+00:00",
+  "url": "https://api.truemarkets.co/v1/gateway/assets?asset_class=crypto&venue=defi&product_type=spot&address=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "asset": {
+    "id": "ef4f2f65-e74a-4aa8-8581-4327c377c9bc",
+    "address": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "chain": "solana",
+    "venue": "defi",
+    "type": "spot",
+    "asset_class": "crypto",
+    "symbol": "USDC",
+    "decimals": 6,
+    "stable": true,
+    "tradeable": false,
+    "status": "active"
+  },
+  "pagination": {
+    "next_cursor": null,
+    "limit": 1
+  },
+  "issuer_source": "https://developers.circle.com/stablecoins/usdc-contract-addresses",
+  "stock_quote_asset_relation": "unverified",
+  "customer_eligibility": "unverified",
+  "private_reads": "not_attempted",
+  "funding_and_trading": "not_attempted"
+}
