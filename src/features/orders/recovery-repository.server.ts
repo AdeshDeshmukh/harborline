@@ -2,7 +2,7 @@ import "server-only";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { DatabaseError, type getDatabase } from "../../server/db";
-import { auditEvents, executionAttempts, gatewayAccounts, investmentIntents, orderApprovals, orderRecoveryObservations, orderRecoveryReads, orderReviews } from "../../server/db/schema";
+import { auditEvents, executionAttempts, gatewayAccounts, investmentIntents, orderApprovals, orderRecoveryObservations, orderRecoveryReads, orderReviews, settlementVerifications } from "../../server/db/schema";
 import { isUuid } from "../../server/env";
 import type { OwnerContext } from "../identity/access.server";
 import { RecoveryError, type RecoveryBinding, type RecoveryDisposition, type RecoveryEvidence, type RecoveryKind, type RecoveryReadResult, type RecoveryView } from "./recovery-types";
@@ -84,9 +84,10 @@ export function createRecoveryRepository(database: ReturnType<typeof getDatabase
     const [known] = await tx.select({ evidence: orderRecoveryObservations.evidence }).from(orderRecoveryObservations).innerJoin(orderRecoveryReads, eq(orderRecoveryReads.id, orderRecoveryObservations.readId)).where(and(eq(orderRecoveryObservations.accountId, a.id), eq(orderRecoveryObservations.intentId, i.id), eq(orderRecoveryObservations.kind, "observed"), eq(orderRecoveryObservations.disposition, "applied"))).orderBy(desc(orderRecoveryReads.sequence)).limit(1);
     const [conflict] = await tx.select({ id: orderRecoveryObservations.readId }).from(orderRecoveryObservations).where(and(eq(orderRecoveryObservations.accountId, a.id), eq(orderRecoveryObservations.intentId, i.id), eq(orderRecoveryObservations.disposition, "conflict"))).limit(1);
     const [executionConflict] = await tx.select({ id: auditEvents.id }).from(auditEvents).where(and(eq(auditEvents.accountId, a.id), eq(auditEvents.intentId, i.id), eq(auditEvents.eventType, "execution_observed"), sql`${auditEvents.metadata}->>'disposition'='conflict'`)).limit(1);
+    const [verification] = await tx.select({id:settlementVerifications.id}).from(settlementVerifications).where(and(eq(settlementVerifications.accountId,a.id),eq(settlementVerifications.intentId,i.id))).limit(1);
     const e = known?.evidence;
     const evidence = e ? Object.freeze({ providerStatus: e.providerStatus, filledBase: e.filledBase, remainingBase: e.remainingBase, averagePriceQuote: e.averagePriceQuote, feeQuote: e.feeQuote, partial: e.partial }) : null;
-    return Object.freeze({ intentId: i.id, state: i.state, evidence, latest: last ? { readId: last.row.readId, kind: last.row.kind, disposition: last.row.disposition, observedAt: last.row.observedAt.toISOString() } : null, requiresManualReview: !!conflict || !!executionConflict || i.state === "MANUAL_REVIEW", slotHeld: a.activeOperationId === i.id, settlementVerified: false, canExecute: false, source: "contract_fixture" });
+    return Object.freeze({ intentId: i.id, state: i.state, evidence, latest: last ? { readId: last.row.readId, kind: last.row.kind, disposition: last.row.disposition, observedAt: last.row.observedAt.toISOString() } : null, requiresManualReview: !!conflict || !!executionConflict || i.state === "MANUAL_REVIEW", slotHeld: a.activeOperationId === i.id, settlementVerified: !!verification, canExecute: false, source: "contract_fixture" });
   }
   return {
     async begin(ctx: OwnerContext, intentId: string) {

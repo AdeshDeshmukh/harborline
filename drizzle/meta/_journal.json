@@ -57,6 +57,13 @@
       "when": 1795671638194,
       "tag": "0008_order_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795685010771,
+      "tag": "0009_settlement_workers",
+      "breakpoints": true
     }
   ]
 }
