@@ -345,3 +345,85 @@ export const settlementBalanceReads = app.table("settlement_balance_reads", {
   check("settlement_balance_read_valid", sql`${t.source}='contract_fixture' AND jsonb_typeof(${t.basis})='object' AND octet_length(${t.basis}::text)<=4096 AND isfinite(${t.startedAt})`),
   pgPolicy("settlement_balance_reads_owner", { for: "all", to: appRole, using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`, withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})` }),
 ]).enableRLS();
+
+// Sale v2 evidence is additive: buy-v1 cash constraints and payload identities stay intact.
+export const disposalReads = app.table("disposal_reads", {
+  id:uuid("id").primaryKey().defaultRandom(),accountId:uuid("account_id").notNull(),intentId:uuid("intent_id").notNull(),
+  sequence:bigserial("sequence",{mode:"bigint"}).notNull().unique(),purpose:varchar("purpose",{length:16}).$type<import("../../features/orders/disposal-store-types").SaleReadPurpose>().notNull(),
+  intentRevision:integer("intent_revision").notNull(),generation:integer("generation").notNull(),binding:jsonb("binding").$type<import("../../features/orders/disposal-types").DisposalBinding>().notNull(),
+  approvalId:uuid("approval_id"),orderReadId:uuid("order_read_id"),cashBaselineId:uuid("cash_baseline_id"),startedAt:timestamp("started_at",{withTimezone:true}).notNull(),source:varchar("source",{length:32}).notNull(),
+},(t):PgTableExtraConfigValue[]=>[
+  unique("sale_read_owned").on(t.id,t.intentId,t.accountId),unique("sale_read_owned_phase").on(t.id,t.intentId,t.accountId,t.purpose),index("sale_read_latest").on(t.accountId,t.intentId,t.purpose,t.sequence),
+  foreignKey({columns:[t.intentId,t.accountId],foreignColumns:[investmentIntents.id,investmentIntents.accountId],name:"sale_read_intent_fk"}).onDelete("restrict"),
+  foreignKey({columns:[t.approvalId,t.intentId,t.accountId],foreignColumns:[disposalApprovals.id,disposalApprovals.intentId,disposalApprovals.accountId],name:"sale_read_approval_fk"}).onDelete("restrict"),
+  foreignKey({columns:[t.orderReadId,t.intentId,t.accountId],foreignColumns:[t.id,t.intentId,t.accountId],name:"sale_read_order_parent_fk"}).onDelete("restrict"),
+  foreignKey({columns:[t.cashBaselineId,t.accountId],foreignColumns:[balanceSnapshots.id,balanceSnapshots.accountId],name:"sale_read_cash_baseline_fk"}).onDelete("restrict"),
+  check("sale_read_valid",sql`${t.source}='contract_fixture' AND ${t.purpose} IN ('prepare','approval','send','order','settlement') AND ${t.intentRevision}>0 AND ${t.generation}>0 AND isfinite(${t.startedAt}) AND jsonb_typeof(${t.binding})='object' AND octet_length(${t.binding}::text)<=4096 AND ((${t.purpose} IN ('prepare','approval') AND ${t.approvalId} IS NULL AND ${t.orderReadId} IS NULL AND ${t.cashBaselineId} IS NULL) OR (${t.purpose} IN ('send','order') AND ${t.approvalId} IS NOT NULL AND ${t.orderReadId} IS NULL AND ${t.cashBaselineId} IS NULL) OR (${t.purpose}='settlement' AND ${t.approvalId} IS NOT NULL AND ${t.orderReadId} IS NOT NULL AND ${t.cashBaselineId} IS NOT NULL))`),
+  pgPolicy("disposal_reads_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`,withCheck:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`}),
+]).enableRLS();
+export const disposalReadObservations=app.table("disposal_read_observations",{
+  readId:uuid("read_id").primaryKey(),accountId:uuid("account_id").notNull(),intentId:uuid("intent_id").notNull(),purpose:varchar("purpose",{length:16}).$type<import("../../features/orders/disposal-store-types").SaleReadPurpose>().notNull(),
+  evidence:jsonb("evidence").$type<import("../../features/orders/disposal-store-types").SaleWalletEvidence>().notNull(),observationHash:varchar("observation_hash",{length:64}).notNull(),disposition:varchar("disposition",{length:16}).$type<"applied"|"ignored">().notNull(),recordedAt:timestamp("recorded_at",{withTimezone:true}).notNull(),
+},(t):PgTableExtraConfigValue[]=>[
+  unique("sale_wallet_owned").on(t.readId,t.intentId,t.accountId),unique("sale_wallet_owned_phase").on(t.readId,t.intentId,t.accountId,t.purpose),
+  foreignKey({columns:[t.readId,t.intentId,t.accountId,t.purpose],foreignColumns:[disposalReads.id,disposalReads.intentId,disposalReads.accountId,disposalReads.purpose],name:"sale_wallet_read_fk"}).onDelete("restrict"),
+  check("sale_wallet_valid",sql`${t.purpose} IN ('prepare','approval','send','settlement') AND ${t.disposition} IN ('applied','ignored') AND ${t.observationHash} ~ '^[0-9a-f]{64}$' AND isfinite(${t.recordedAt}) AND jsonb_typeof(${t.evidence})='object' AND octet_length(${t.evidence}::text)<=12288`),
+  pgPolicy("disposal_wallet_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`,withCheck:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`}),
+]).enableRLS();
+export const disposalReviews=app.table("disposal_reviews",{
+  id:uuid("id").primaryKey().defaultRandom(),accountId:uuid("account_id").notNull(),intentId:uuid("intent_id").notNull(),revision:integer("revision").notNull(),holdingReadId:uuid("holding_read_id").notNull(),holdingReadPurpose:varchar("holding_read_purpose",{length:16}).notNull().default("prepare"),
+  terms:jsonb("terms").$type<import("../../features/orders/disposal-store-types").StoredSaleTerms>().notNull(),termsHash:varchar("terms_hash",{length:64}).notNull(),maximumBaseDebit:numeric("maximum_base_debit",{precision:38,scale:18}).notNull(),
+  payloadsEncrypted:bytea("payloads_encrypted").notNull(),nonce:bytea("nonce").notNull(),tag:bytea("tag").notNull(),encryptionKeyVersion:integer("encryption_key_version").notNull(),createdAt:timestamp("created_at",{withTimezone:true}).notNull(),expiresAt:timestamp("expires_at",{withTimezone:true}).notNull(),
+},(t):PgTableExtraConfigValue[]=>[
+  unique("sale_review_owned_revision").on(t.intentId,t.revision,t.accountId),
+  foreignKey({columns:[t.intentId,t.accountId],foreignColumns:[investmentIntents.id,investmentIntents.accountId],name:"sale_review_intent_fk"}).onDelete("restrict"),
+  foreignKey({columns:[t.holdingReadId,t.intentId,t.accountId,t.holdingReadPurpose],foreignColumns:[disposalReadObservations.readId,disposalReadObservations.intentId,disposalReadObservations.accountId,disposalReadObservations.purpose],name:"sale_review_wallet_fk"}).onDelete("restrict"),
+  check("sale_review_valid",sql`${t.revision}>0 AND ${t.holdingReadPurpose}='prepare' AND ${t.maximumBaseDebit}>0 AND ${t.maximumBaseDebit}<>'NaN'::numeric AND ${t.termsHash} ~ '^[0-9a-f]{64}$' AND jsonb_typeof(${t.terms})='object' AND ${t.terms}->>'version'='2' AND ${t.terms}->>'operationKind'='sell' AND octet_length(${t.terms}::text)<=65536 AND ${t.encryptionKeyVersion}>0 AND octet_length(${t.payloadsEncrypted}) BETWEEN 1 AND 2200000 AND octet_length(${t.nonce})=12 AND octet_length(${t.tag})=16 AND isfinite(${t.createdAt}) AND isfinite(${t.expiresAt}) AND ${t.expiresAt}>${t.createdAt} AND ${t.expiresAt}<=${t.createdAt}+interval '20 seconds'`),
+  pgPolicy("disposal_reviews_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`,withCheck:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`}),
+]).enableRLS();
+export const disposalApprovals=app.table("disposal_approvals",{
+  id:uuid("id").primaryKey().defaultRandom(),attemptId:uuid("attempt_id").notNull().defaultRandom(),accountId:uuid("account_id").notNull(),intentId:uuid("intent_id").notNull(),ownerId:uuid("owner_id").notNull(),operatorId:uuid("operator_id").notNull(),reviewRevision:integer("review_revision").notNull(),termsHash:varchar("terms_hash",{length:64}).notNull(),holdingReadId:uuid("holding_read_id").notNull(),holdingReadPurpose:varchar("holding_read_purpose",{length:16}).notNull().default("approval"),cashBaselineId:uuid("cash_baseline_id").notNull(),approvedAt:timestamp("approved_at",{withTimezone:true}).notNull(),source:varchar("source",{length:32}).notNull(),
+},(t):PgTableExtraConfigValue[]=>[
+  unique("sale_approval_owned").on(t.id,t.intentId,t.accountId),unique("sale_approval_attempt").on(t.attemptId,t.intentId,t.accountId),unique("sale_approval_intent").on(t.intentId),
+  foreignKey({columns:[t.intentId,t.reviewRevision,t.accountId],foreignColumns:[disposalReviews.intentId,disposalReviews.revision,disposalReviews.accountId],name:"sale_approval_review_fk"}).onDelete("restrict"),
+  foreignKey({columns:[t.holdingReadId,t.intentId,t.accountId,t.holdingReadPurpose],foreignColumns:[disposalReadObservations.readId,disposalReadObservations.intentId,disposalReadObservations.accountId,disposalReadObservations.purpose],name:"sale_approval_wallet_fk"}).onDelete("restrict"),
+  foreignKey({columns:[t.cashBaselineId,t.accountId],foreignColumns:[balanceSnapshots.id,balanceSnapshots.accountId],name:"sale_approval_cash_fk"}).onDelete("restrict"),
+  check("sale_approval_valid",sql`${t.source}='contract_fixture' AND ${t.reviewRevision}>0 AND ${t.holdingReadPurpose}='approval' AND ${t.termsHash} ~ '^[0-9a-f]{64}$' AND isfinite(${t.approvedAt})`),
+  pgPolicy("disposal_approvals_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`,withCheck:sql`${t.ownerId}=${owner} AND exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`}),
+]).enableRLS();
+export const disposalDispatches=app.table("disposal_dispatches",{
+  attemptId:uuid("attempt_id").primaryKey(),accountId:uuid("account_id").notNull(),intentId:uuid("intent_id").notNull(),claimedAt:timestamp("claimed_at",{withTimezone:true}).notNull(),source:varchar("source",{length:32}).notNull(),
+},(t):PgTableExtraConfigValue[]=>[
+  unique("sale_dispatch_owned").on(t.attemptId,t.intentId,t.accountId),
+  foreignKey({columns:[t.attemptId,t.intentId,t.accountId],foreignColumns:[disposalApprovals.attemptId,disposalApprovals.intentId,disposalApprovals.accountId],name:"sale_dispatch_approval_fk"}).onDelete("restrict"),
+  check("sale_dispatch_valid",sql`${t.source}='contract_fixture' AND isfinite(${t.claimedAt})`),
+  pgPolicy("disposal_dispatches_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`,withCheck:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`}),
+]).enableRLS();
+export const disposalSendAuthorizations=app.table("disposal_send_authorizations",{
+  attemptId:uuid("attempt_id").primaryKey(),accountId:uuid("account_id").notNull(),intentId:uuid("intent_id").notNull(),readId:uuid("read_id").notNull(),readPurpose:varchar("read_purpose",{length:16}).notNull().default("send"),authorizedAt:timestamp("authorized_at",{withTimezone:true}).notNull(),source:varchar("source",{length:32}).notNull(),
+},(t):PgTableExtraConfigValue[]=>[
+  foreignKey({columns:[t.attemptId,t.intentId,t.accountId],foreignColumns:[disposalDispatches.attemptId,disposalDispatches.intentId,disposalDispatches.accountId],name:"sale_send_dispatch_fk"}).onDelete("restrict"),
+  foreignKey({columns:[t.readId,t.intentId,t.accountId,t.readPurpose],foreignColumns:[disposalReadObservations.readId,disposalReadObservations.intentId,disposalReadObservations.accountId,disposalReadObservations.purpose],name:"sale_send_wallet_fk"}).onDelete("restrict"),
+  check("sale_send_valid",sql`${t.source}='contract_fixture' AND ${t.readPurpose}='send' AND isfinite(${t.authorizedAt})`),
+  pgPolicy("disposal_send_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`,withCheck:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`}),
+]).enableRLS();
+export const disposalOutcomes=app.table("disposal_outcomes",{
+  readId:uuid("read_id").primaryKey(),accountId:uuid("account_id").notNull(),intentId:uuid("intent_id").notNull(),readPurpose:varchar("read_purpose",{length:16}).notNull().default("order"),kind:varchar("kind",{length:32}).$type<RecoveryKind>().notNull(),disposition:varchar("disposition",{length:16}).$type<RecoveryDisposition>().notNull(),evidence:jsonb("evidence").$type<import("../../features/orders/disposal-store-types").SaleOrderEvidence>(),observationHash:varchar("observation_hash",{length:64}).notNull(),observedAt:timestamp("observed_at",{withTimezone:true}).notNull(),source:varchar("source",{length:32}).notNull(),
+},(t):PgTableExtraConfigValue[]=>[
+  unique("sale_outcome_owned").on(t.readId,t.intentId,t.accountId),index("sale_outcome_intent").on(t.accountId,t.intentId),
+  foreignKey({columns:[t.readId,t.intentId,t.accountId,t.readPurpose],foreignColumns:[disposalReads.id,disposalReads.intentId,disposalReads.accountId,disposalReads.purpose],name:"sale_outcome_read_fk"}).onDelete("restrict"),
+  check("sale_outcome_valid",sql`${t.source}='contract_fixture' AND ${t.readPurpose}='order' AND ${t.kind} IN ('observed','initialized','unavailable','not_found','invalid_response') AND ${t.disposition} IN ('applied','ignored','conflict') AND ${t.observationHash} ~ '^[0-9a-f]{64}$' AND isfinite(${t.observedAt}) AND (${t.evidence} IS NULL OR (jsonb_typeof(${t.evidence})='object' AND octet_length(${t.evidence}::text)<=4096))`),
+  pgPolicy("disposal_outcomes_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`,withCheck:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`}),
+]).enableRLS();
+export const disposalSettlements=app.table("disposal_settlements",{
+  id:uuid("id").primaryKey().defaultRandom(),accountId:uuid("account_id").notNull(),intentId:uuid("intent_id").notNull(),approvalId:uuid("approval_id").notNull(),orderReadId:uuid("order_read_id").notNull(),walletReadId:uuid("wallet_read_id").notNull(),walletReadPurpose:varchar("wallet_read_purpose",{length:16}).notNull().default("settlement"),baselineId:uuid("baseline_id").notNull(),operatorId:uuid("operator_id").notNull(),requestKey:uuid("request_key").notNull(),proofHash:varchar("proof_hash",{length:64}).notNull(),references:jsonb("evidence_references").$type<Record<string,string>>().notNull(),result:jsonb("result").$type<import("../../features/orders/disposal-types").DisposalReconciliation>().notNull(),verifiedAt:timestamp("verified_at",{withTimezone:true}).notNull(),source:varchar("source",{length:32}).notNull(),
+},(t):PgTableExtraConfigValue[]=>[
+  unique("sale_settlement_intent").on(t.intentId),unique("sale_settlement_request").on(t.accountId,t.requestKey),
+  foreignKey({columns:[t.approvalId,t.intentId,t.accountId],foreignColumns:[disposalApprovals.id,disposalApprovals.intentId,disposalApprovals.accountId],name:"sale_settlement_approval_fk"}).onDelete("restrict"),
+  foreignKey({columns:[t.orderReadId,t.intentId,t.accountId],foreignColumns:[disposalOutcomes.readId,disposalOutcomes.intentId,disposalOutcomes.accountId],name:"sale_settlement_order_fk"}).onDelete("restrict"),
+  foreignKey({columns:[t.walletReadId,t.intentId,t.accountId,t.walletReadPurpose],foreignColumns:[disposalReadObservations.readId,disposalReadObservations.intentId,disposalReadObservations.accountId,disposalReadObservations.purpose],name:"sale_settlement_wallet_fk"}).onDelete("restrict"),
+  foreignKey({columns:[t.baselineId,t.accountId],foreignColumns:[balanceSnapshots.id,balanceSnapshots.accountId],name:"sale_settlement_baseline_fk"}).onDelete("restrict"),
+  check("sale_settlement_references",sql`jsonb_typeof(${t.references})='object' AND octet_length(${t.references}::text)<=2048`),
+  check("sale_settlement_valid",sql`${t.source}='contract_fixture' AND ${t.walletReadPurpose}='settlement' AND ${t.proofHash} ~ '^[0-9a-f]{64}$' AND isfinite(${t.verifiedAt}) AND jsonb_typeof(${t.result})='object' AND octet_length(${t.result}::text)<=8192`),
+  pgPolicy("disposal_settlements_owner",{for:"all",to:appRole,using:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`,withCheck:sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`}),
+]).enableRLS();

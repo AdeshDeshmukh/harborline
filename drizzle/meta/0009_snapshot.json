@@ -1,0 +1,4119 @@
+{
+  "id": "0fbf51fe-ae8c-4b76-a4d5-2509dac3f98c",
+  "prevId": "cc98f170-d311-4ea2-b807-728b903974eb",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "harborline.audit_events": {
+      "name": "audit_events",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_type": {
+          "name": "event_type",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "redacted_metadata": {
+          "name": "redacted_metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "audit_account_intent_sequence": {
+          "name": "audit_account_intent_sequence",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "intent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "audit_events_account_id_gateway_accounts_id_fk": {
+          "name": "audit_events_account_id_gateway_accounts_id_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "gateway_accounts",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "audit_events_actor_id_profiles_auth_user_id_fk": {
+          "name": "audit_events_actor_id_profiles_auth_user_id_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "profiles",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "actor_id"
+          ],
+          "columnsTo": [
+            "auth_user_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "audit_owned_intent_fk": {
+          "name": "audit_owned_intent_fk",
+          "tableFrom": "audit_events",
+          "tableTo": "investment_intents",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "audit_events_sequence_unique": {
+          "name": "audit_events_sequence_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "sequence"
+          ]
+        }
+      },
+      "policies": {
+        "audit_events_owner": {
+          "name": "audit_events_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"audit_events\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "(\"harborline\".\"audit_events\".\"actor_id\" IS NULL OR \"harborline\".\"audit_events\".\"actor_id\"=nullif(current_setting('harborline.owner_id', true), '')::uuid) AND exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"audit_events\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "audit_metadata_bounded": {
+          "name": "audit_metadata_bounded",
+          "value": "jsonb_typeof(\"harborline\".\"audit_events\".\"redacted_metadata\")='object' AND octet_length(\"harborline\".\"audit_events\".\"redacted_metadata\"::text)<=4096"
+        },
+        "audit_event_type_valid": {
+          "name": "audit_event_type_valid",
+          "value": "\"harborline\".\"audit_events\".\"event_type\" ~ '^[a-z][a-z0-9_]{0,63}$' AND isfinite(\"harborline\".\"audit_events\".\"occurred_at\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.balance_snapshots": {
+      "name": "balance_snapshots",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "listing_id": {
+          "name": "listing_id",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "chain": {
+          "name": "chain",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "venue": {
+          "name": "venue",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "available": {
+          "name": "available",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "balance_snapshot_account_sequence": {
+          "name": "balance_snapshot_account_sequence",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "balance_snapshots_account_id_gateway_accounts_id_fk": {
+          "name": "balance_snapshots_account_id_gateway_accounts_id_fk",
+          "tableFrom": "balance_snapshots",
+          "tableTo": "gateway_accounts",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "balance_snapshot_account_identity": {
+          "name": "balance_snapshot_account_identity",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "account_id"
+          ]
+        },
+        "balance_snapshot_sequence_unique": {
+          "name": "balance_snapshot_sequence_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "sequence"
+          ]
+        }
+      },
+      "policies": {
+        "balance_snapshots_owner": {
+          "name": "balance_snapshots_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"balance_snapshots\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"balance_snapshots\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "balance_fixture_only": {
+          "name": "balance_fixture_only",
+          "value": "\"harborline\".\"balance_snapshots\".\"source\" = 'fixture'"
+        },
+        "balance_available_valid": {
+          "name": "balance_available_valid",
+          "value": "\"harborline\".\"balance_snapshots\".\"available\" >= 0 AND \"harborline\".\"balance_snapshots\".\"available\" <> 'NaN'::numeric"
+        },
+        "balance_observed_finite": {
+          "name": "balance_observed_finite",
+          "value": "isfinite(\"harborline\".\"balance_snapshots\".\"observed_at\")"
+        },
+        "balance_identity_nonempty": {
+          "name": "balance_identity_nonempty",
+          "value": "length(trim(\"harborline\".\"balance_snapshots\".\"listing_id\")) > 0 AND length(trim(\"harborline\".\"balance_snapshots\".\"chain\")) > 0 AND length(trim(\"harborline\".\"balance_snapshots\".\"venue\")) > 0"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.calculation_snapshots": {
+      "name": "calculation_snapshots",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balance_snapshot_id": {
+          "name": "balance_snapshot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "policy_revision": {
+          "name": "policy_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "formula_version": {
+          "name": "formula_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "input": {
+          "name": "input",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result": {
+          "name": "result",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "horizon_end": {
+          "name": "horizon_end",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "calculation_snapshot_account": {
+          "name": "calculation_snapshot_account",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "calculation_snapshots_account_id_gateway_accounts_id_fk": {
+          "name": "calculation_snapshots_account_id_gateway_accounts_id_fk",
+          "tableFrom": "calculation_snapshots",
+          "tableTo": "gateway_accounts",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "calculation_owned_balance_fk": {
+          "name": "calculation_owned_balance_fk",
+          "tableFrom": "calculation_snapshots",
+          "tableTo": "balance_snapshots",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "balance_snapshot_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "calculation_snapshot_account_identity": {
+          "name": "calculation_snapshot_account_identity",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "account_id"
+          ]
+        }
+      },
+      "policies": {
+        "calculation_snapshots_owner": {
+          "name": "calculation_snapshots_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"calculation_snapshots\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"calculation_snapshots\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "calculation_revision_positive": {
+          "name": "calculation_revision_positive",
+          "value": "\"harborline\".\"calculation_snapshots\".\"policy_revision\" >= 1"
+        },
+        "calculation_formula_supported": {
+          "name": "calculation_formula_supported",
+          "value": "\"harborline\".\"calculation_snapshots\".\"formula_version\" = 1"
+        },
+        "calculation_input_object": {
+          "name": "calculation_input_object",
+          "value": "jsonb_typeof(\"harborline\".\"calculation_snapshots\".\"input\") = 'object'"
+        },
+        "calculation_result_object": {
+          "name": "calculation_result_object",
+          "value": "jsonb_typeof(\"harborline\".\"calculation_snapshots\".\"result\") = 'object'"
+        },
+        "calculation_date_range": {
+          "name": "calculation_date_range",
+          "value": "\"harborline\".\"calculation_snapshots\".\"horizon_end\" BETWEEN DATE '0001-01-01' AND DATE '9999-12-31'"
+        },
+        "calculation_created_finite": {
+          "name": "calculation_created_finite",
+          "value": "isfinite(\"harborline\".\"calculation_snapshots\".\"created_at\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.commitments": {
+      "name": "commitments",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "varchar(120)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "commitment_status",
+          "typeSchema": "harborline",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'outstanding'"
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        }
+      },
+      "indexes": {
+        "commitments_account_due_date": {
+          "name": "commitments_account_due_date",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "due_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "commitments_account_id_planning_policies_account_id_fk": {
+          "name": "commitments_account_id_planning_policies_account_id_fk",
+          "tableFrom": "commitments",
+          "tableTo": "planning_policies",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "commitments_owner": {
+          "name": "commitments_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"commitments\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"commitments\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "commitment_label_nonempty": {
+          "name": "commitment_label_nonempty",
+          "value": "length(trim(\"harborline\".\"commitments\".\"label\")) > 0 AND \"harborline\".\"commitments\".\"label\" !~ '[[:cntrl:]]'"
+        },
+        "commitment_amount_valid": {
+          "name": "commitment_amount_valid",
+          "value": "\"harborline\".\"commitments\".\"amount\" > 0 AND \"harborline\".\"commitments\".\"amount\" <> 'NaN'::numeric AND \"harborline\".\"commitments\".\"amount\" = trunc(\"harborline\".\"commitments\".\"amount\", 2)"
+        },
+        "commitment_date_range": {
+          "name": "commitment_date_range",
+          "value": "\"harborline\".\"commitments\".\"due_date\" BETWEEN DATE '0001-01-01' AND DATE '9999-12-31'"
+        },
+        "commitment_revision_positive": {
+          "name": "commitment_revision_positive",
+          "value": "\"harborline\".\"commitments\".\"revision\" >= 1"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.disposal_approvals": {
+      "name": "disposal_approvals",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_id": {
+          "name": "operator_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "review_revision": {
+          "name": "review_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "terms_hash": {
+          "name": "terms_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "holding_read_id": {
+          "name": "holding_read_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "holding_read_purpose": {
+          "name": "holding_read_purpose",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'approval'"
+        },
+        "cash_baseline_id": {
+          "name": "cash_baseline_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sale_approval_review_fk": {
+          "name": "sale_approval_review_fk",
+          "tableFrom": "disposal_approvals",
+          "tableTo": "disposal_reviews",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "intent_id",
+            "review_revision",
+            "account_id"
+          ],
+          "columnsTo": [
+            "intent_id",
+            "revision",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "sale_approval_wallet_fk": {
+          "name": "sale_approval_wallet_fk",
+          "tableFrom": "disposal_approvals",
+          "tableTo": "disposal_read_observations",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "holding_read_id",
+            "intent_id",
+            "account_id",
+            "holding_read_purpose"
+          ],
+          "columnsTo": [
+            "read_id",
+            "intent_id",
+            "account_id",
+            "purpose"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "sale_approval_cash_fk": {
+          "name": "sale_approval_cash_fk",
+          "tableFrom": "disposal_approvals",
+          "tableTo": "balance_snapshots",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "cash_baseline_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sale_approval_owned": {
+          "name": "sale_approval_owned",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "intent_id",
+            "account_id"
+          ]
+        },
+        "sale_approval_attempt": {
+          "name": "sale_approval_attempt",
+          "nullsNotDistinct": false,
+          "columns": [
+            "attempt_id",
+            "intent_id",
+            "account_id"
+          ]
+        },
+        "sale_approval_intent": {
+          "name": "sale_approval_intent",
+          "nullsNotDistinct": false,
+          "columns": [
+            "intent_id"
+          ]
+        }
+      },
+      "policies": {
+        "disposal_approvals_owner": {
+          "name": "disposal_approvals_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_approvals\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "\"harborline\".\"disposal_approvals\".\"owner_id\"=nullif(current_setting('harborline.owner_id', true), '')::uuid AND exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_approvals\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "sale_approval_valid": {
+          "name": "sale_approval_valid",
+          "value": "\"harborline\".\"disposal_approvals\".\"source\"='contract_fixture' AND \"harborline\".\"disposal_approvals\".\"review_revision\">0 AND \"harborline\".\"disposal_approvals\".\"holding_read_purpose\"='approval' AND \"harborline\".\"disposal_approvals\".\"terms_hash\" ~ '^[0-9a-f]{64}$' AND isfinite(\"harborline\".\"disposal_approvals\".\"approved_at\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.disposal_dispatches": {
+      "name": "disposal_dispatches",
+      "schema": "harborline",
+      "columns": {
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sale_dispatch_approval_fk": {
+          "name": "sale_dispatch_approval_fk",
+          "tableFrom": "disposal_dispatches",
+          "tableTo": "disposal_approvals",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "attempt_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "attempt_id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sale_dispatch_owned": {
+          "name": "sale_dispatch_owned",
+          "nullsNotDistinct": false,
+          "columns": [
+            "attempt_id",
+            "intent_id",
+            "account_id"
+          ]
+        }
+      },
+      "policies": {
+        "disposal_dispatches_owner": {
+          "name": "disposal_dispatches_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_dispatches\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_dispatches\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "sale_dispatch_valid": {
+          "name": "sale_dispatch_valid",
+          "value": "\"harborline\".\"disposal_dispatches\".\"source\"='contract_fixture' AND isfinite(\"harborline\".\"disposal_dispatches\".\"claimed_at\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.disposal_outcomes": {
+      "name": "disposal_outcomes",
+      "schema": "harborline",
+      "columns": {
+        "read_id": {
+          "name": "read_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "read_purpose": {
+          "name": "read_purpose",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'order'"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "disposition": {
+          "name": "disposition",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "observation_hash": {
+          "name": "observation_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "sale_outcome_intent": {
+          "name": "sale_outcome_intent",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "intent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sale_outcome_read_fk": {
+          "name": "sale_outcome_read_fk",
+          "tableFrom": "disposal_outcomes",
+          "tableTo": "disposal_reads",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "read_id",
+            "intent_id",
+            "account_id",
+            "read_purpose"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id",
+            "purpose"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sale_outcome_owned": {
+          "name": "sale_outcome_owned",
+          "nullsNotDistinct": false,
+          "columns": [
+            "read_id",
+            "intent_id",
+            "account_id"
+          ]
+        }
+      },
+      "policies": {
+        "disposal_outcomes_owner": {
+          "name": "disposal_outcomes_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_outcomes\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_outcomes\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "sale_outcome_valid": {
+          "name": "sale_outcome_valid",
+          "value": "\"harborline\".\"disposal_outcomes\".\"source\"='contract_fixture' AND \"harborline\".\"disposal_outcomes\".\"read_purpose\"='order' AND \"harborline\".\"disposal_outcomes\".\"kind\" IN ('observed','initialized','unavailable','not_found','invalid_response') AND \"harborline\".\"disposal_outcomes\".\"disposition\" IN ('applied','ignored','conflict') AND \"harborline\".\"disposal_outcomes\".\"observation_hash\" ~ '^[0-9a-f]{64}$' AND isfinite(\"harborline\".\"disposal_outcomes\".\"observed_at\") AND (\"harborline\".\"disposal_outcomes\".\"evidence\" IS NULL OR (jsonb_typeof(\"harborline\".\"disposal_outcomes\".\"evidence\")='object' AND octet_length(\"harborline\".\"disposal_outcomes\".\"evidence\"::text)<=4096))"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.disposal_read_observations": {
+      "name": "disposal_read_observations",
+      "schema": "harborline",
+      "columns": {
+        "read_id": {
+          "name": "read_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purpose": {
+          "name": "purpose",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observation_hash": {
+          "name": "observation_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "disposition": {
+          "name": "disposition",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sale_wallet_read_fk": {
+          "name": "sale_wallet_read_fk",
+          "tableFrom": "disposal_read_observations",
+          "tableTo": "disposal_reads",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "read_id",
+            "intent_id",
+            "account_id",
+            "purpose"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id",
+            "purpose"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sale_wallet_owned": {
+          "name": "sale_wallet_owned",
+          "nullsNotDistinct": false,
+          "columns": [
+            "read_id",
+            "intent_id",
+            "account_id"
+          ]
+        },
+        "sale_wallet_owned_phase": {
+          "name": "sale_wallet_owned_phase",
+          "nullsNotDistinct": false,
+          "columns": [
+            "read_id",
+            "intent_id",
+            "account_id",
+            "purpose"
+          ]
+        }
+      },
+      "policies": {
+        "disposal_wallet_owner": {
+          "name": "disposal_wallet_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_read_observations\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_read_observations\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "sale_wallet_valid": {
+          "name": "sale_wallet_valid",
+          "value": "\"harborline\".\"disposal_read_observations\".\"purpose\" IN ('prepare','approval','send','settlement') AND \"harborline\".\"disposal_read_observations\".\"disposition\" IN ('applied','ignored') AND \"harborline\".\"disposal_read_observations\".\"observation_hash\" ~ '^[0-9a-f]{64}$' AND isfinite(\"harborline\".\"disposal_read_observations\".\"recorded_at\") AND jsonb_typeof(\"harborline\".\"disposal_read_observations\".\"evidence\")='object' AND octet_length(\"harborline\".\"disposal_read_observations\".\"evidence\"::text)<=12288"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.disposal_reads": {
+      "name": "disposal_reads",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purpose": {
+          "name": "purpose",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_revision": {
+          "name": "intent_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "generation": {
+          "name": "generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "binding": {
+          "name": "binding",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approval_id": {
+          "name": "approval_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "order_read_id": {
+          "name": "order_read_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cash_baseline_id": {
+          "name": "cash_baseline_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "sale_read_latest": {
+          "name": "sale_read_latest",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "intent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "purpose",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "sale_read_intent_fk": {
+          "name": "sale_read_intent_fk",
+          "tableFrom": "disposal_reads",
+          "tableTo": "investment_intents",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "sale_read_approval_fk": {
+          "name": "sale_read_approval_fk",
+          "tableFrom": "disposal_reads",
+          "tableTo": "disposal_approvals",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "approval_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "sale_read_order_parent_fk": {
+          "name": "sale_read_order_parent_fk",
+          "tableFrom": "disposal_reads",
+          "tableTo": "disposal_reads",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "order_read_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "sale_read_cash_baseline_fk": {
+          "name": "sale_read_cash_baseline_fk",
+          "tableFrom": "disposal_reads",
+          "tableTo": "balance_snapshots",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "cash_baseline_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "disposal_reads_sequence_unique": {
+          "name": "disposal_reads_sequence_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "sequence"
+          ]
+        },
+        "sale_read_owned": {
+          "name": "sale_read_owned",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "intent_id",
+            "account_id"
+          ]
+        },
+        "sale_read_owned_phase": {
+          "name": "sale_read_owned_phase",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "intent_id",
+            "account_id",
+            "purpose"
+          ]
+        }
+      },
+      "policies": {
+        "disposal_reads_owner": {
+          "name": "disposal_reads_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_reads\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_reads\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "sale_read_valid": {
+          "name": "sale_read_valid",
+          "value": "\"harborline\".\"disposal_reads\".\"source\"='contract_fixture' AND \"harborline\".\"disposal_reads\".\"purpose\" IN ('prepare','approval','send','order','settlement') AND \"harborline\".\"disposal_reads\".\"intent_revision\">0 AND \"harborline\".\"disposal_reads\".\"generation\">0 AND isfinite(\"harborline\".\"disposal_reads\".\"started_at\") AND jsonb_typeof(\"harborline\".\"disposal_reads\".\"binding\")='object' AND octet_length(\"harborline\".\"disposal_reads\".\"binding\"::text)<=4096 AND ((\"harborline\".\"disposal_reads\".\"purpose\" IN ('prepare','approval') AND \"harborline\".\"disposal_reads\".\"approval_id\" IS NULL AND \"harborline\".\"disposal_reads\".\"order_read_id\" IS NULL AND \"harborline\".\"disposal_reads\".\"cash_baseline_id\" IS NULL) OR (\"harborline\".\"disposal_reads\".\"purpose\" IN ('send','order') AND \"harborline\".\"disposal_reads\".\"approval_id\" IS NOT NULL AND \"harborline\".\"disposal_reads\".\"order_read_id\" IS NULL AND \"harborline\".\"disposal_reads\".\"cash_baseline_id\" IS NULL) OR (\"harborline\".\"disposal_reads\".\"purpose\"='settlement' AND \"harborline\".\"disposal_reads\".\"approval_id\" IS NOT NULL AND \"harborline\".\"disposal_reads\".\"order_read_id\" IS NOT NULL AND \"harborline\".\"disposal_reads\".\"cash_baseline_id\" IS NOT NULL))"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.disposal_reviews": {
+      "name": "disposal_reviews",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "holding_read_id": {
+          "name": "holding_read_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "holding_read_purpose": {
+          "name": "holding_read_purpose",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'prepare'"
+        },
+        "terms": {
+          "name": "terms",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "terms_hash": {
+          "name": "terms_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "maximum_base_debit": {
+          "name": "maximum_base_debit",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payloads_encrypted": {
+          "name": "payloads_encrypted",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tag": {
+          "name": "tag",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "encryption_key_version": {
+          "name": "encryption_key_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sale_review_intent_fk": {
+          "name": "sale_review_intent_fk",
+          "tableFrom": "disposal_reviews",
+          "tableTo": "investment_intents",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "sale_review_wallet_fk": {
+          "name": "sale_review_wallet_fk",
+          "tableFrom": "disposal_reviews",
+          "tableTo": "disposal_read_observations",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "holding_read_id",
+            "intent_id",
+            "account_id",
+            "holding_read_purpose"
+          ],
+          "columnsTo": [
+            "read_id",
+            "intent_id",
+            "account_id",
+            "purpose"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sale_review_owned_revision": {
+          "name": "sale_review_owned_revision",
+          "nullsNotDistinct": false,
+          "columns": [
+            "intent_id",
+            "revision",
+            "account_id"
+          ]
+        }
+      },
+      "policies": {
+        "disposal_reviews_owner": {
+          "name": "disposal_reviews_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_reviews\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_reviews\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "sale_review_valid": {
+          "name": "sale_review_valid",
+          "value": "\"harborline\".\"disposal_reviews\".\"revision\">0 AND \"harborline\".\"disposal_reviews\".\"holding_read_purpose\"='prepare' AND \"harborline\".\"disposal_reviews\".\"maximum_base_debit\">0 AND \"harborline\".\"disposal_reviews\".\"maximum_base_debit\"<>'NaN'::numeric AND \"harborline\".\"disposal_reviews\".\"terms_hash\" ~ '^[0-9a-f]{64}$' AND jsonb_typeof(\"harborline\".\"disposal_reviews\".\"terms\")='object' AND \"harborline\".\"disposal_reviews\".\"terms\"->>'version'='2' AND \"harborline\".\"disposal_reviews\".\"terms\"->>'operationKind'='sell' AND octet_length(\"harborline\".\"disposal_reviews\".\"terms\"::text)<=65536 AND \"harborline\".\"disposal_reviews\".\"encryption_key_version\">0 AND octet_length(\"harborline\".\"disposal_reviews\".\"payloads_encrypted\") BETWEEN 1 AND 2200000 AND octet_length(\"harborline\".\"disposal_reviews\".\"nonce\")=12 AND octet_length(\"harborline\".\"disposal_reviews\".\"tag\")=16 AND isfinite(\"harborline\".\"disposal_reviews\".\"created_at\") AND isfinite(\"harborline\".\"disposal_reviews\".\"expires_at\") AND \"harborline\".\"disposal_reviews\".\"expires_at\">\"harborline\".\"disposal_reviews\".\"created_at\" AND \"harborline\".\"disposal_reviews\".\"expires_at\"<=\"harborline\".\"disposal_reviews\".\"created_at\"+interval '20 seconds'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.disposal_send_authorizations": {
+      "name": "disposal_send_authorizations",
+      "schema": "harborline",
+      "columns": {
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "read_id": {
+          "name": "read_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "read_purpose": {
+          "name": "read_purpose",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'send'"
+        },
+        "authorized_at": {
+          "name": "authorized_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sale_send_dispatch_fk": {
+          "name": "sale_send_dispatch_fk",
+          "tableFrom": "disposal_send_authorizations",
+          "tableTo": "disposal_dispatches",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "attempt_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "attempt_id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "sale_send_wallet_fk": {
+          "name": "sale_send_wallet_fk",
+          "tableFrom": "disposal_send_authorizations",
+          "tableTo": "disposal_read_observations",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "read_id",
+            "intent_id",
+            "account_id",
+            "read_purpose"
+          ],
+          "columnsTo": [
+            "read_id",
+            "intent_id",
+            "account_id",
+            "purpose"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "disposal_send_owner": {
+          "name": "disposal_send_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_send_authorizations\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_send_authorizations\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "sale_send_valid": {
+          "name": "sale_send_valid",
+          "value": "\"harborline\".\"disposal_send_authorizations\".\"source\"='contract_fixture' AND \"harborline\".\"disposal_send_authorizations\".\"read_purpose\"='send' AND isfinite(\"harborline\".\"disposal_send_authorizations\".\"authorized_at\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.disposal_settlements": {
+      "name": "disposal_settlements",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approval_id": {
+          "name": "approval_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_read_id": {
+          "name": "order_read_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wallet_read_id": {
+          "name": "wallet_read_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wallet_read_purpose": {
+          "name": "wallet_read_purpose",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'settlement'"
+        },
+        "baseline_id": {
+          "name": "baseline_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_id": {
+          "name": "operator_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_key": {
+          "name": "request_key",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "proof_hash": {
+          "name": "proof_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_references": {
+          "name": "evidence_references",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "result": {
+          "name": "result",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "sale_settlement_approval_fk": {
+          "name": "sale_settlement_approval_fk",
+          "tableFrom": "disposal_settlements",
+          "tableTo": "disposal_approvals",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "approval_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "sale_settlement_order_fk": {
+          "name": "sale_settlement_order_fk",
+          "tableFrom": "disposal_settlements",
+          "tableTo": "disposal_outcomes",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "order_read_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "read_id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "sale_settlement_wallet_fk": {
+          "name": "sale_settlement_wallet_fk",
+          "tableFrom": "disposal_settlements",
+          "tableTo": "disposal_read_observations",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "wallet_read_id",
+            "intent_id",
+            "account_id",
+            "wallet_read_purpose"
+          ],
+          "columnsTo": [
+            "read_id",
+            "intent_id",
+            "account_id",
+            "purpose"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "sale_settlement_baseline_fk": {
+          "name": "sale_settlement_baseline_fk",
+          "tableFrom": "disposal_settlements",
+          "tableTo": "balance_snapshots",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "baseline_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sale_settlement_intent": {
+          "name": "sale_settlement_intent",
+          "nullsNotDistinct": false,
+          "columns": [
+            "intent_id"
+          ]
+        },
+        "sale_settlement_request": {
+          "name": "sale_settlement_request",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "request_key"
+          ]
+        }
+      },
+      "policies": {
+        "disposal_settlements_owner": {
+          "name": "disposal_settlements_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_settlements\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"disposal_settlements\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "sale_settlement_references": {
+          "name": "sale_settlement_references",
+          "value": "jsonb_typeof(\"harborline\".\"disposal_settlements\".\"evidence_references\")='object' AND octet_length(\"harborline\".\"disposal_settlements\".\"evidence_references\"::text)<=2048"
+        },
+        "sale_settlement_valid": {
+          "name": "sale_settlement_valid",
+          "value": "\"harborline\".\"disposal_settlements\".\"source\"='contract_fixture' AND \"harborline\".\"disposal_settlements\".\"wallet_read_purpose\"='settlement' AND \"harborline\".\"disposal_settlements\".\"proof_hash\" ~ '^[0-9a-f]{64}$' AND isfinite(\"harborline\".\"disposal_settlements\".\"verified_at\") AND jsonb_typeof(\"harborline\".\"disposal_settlements\".\"result\")='object' AND octet_length(\"harborline\".\"disposal_settlements\".\"result\"::text)<=8192"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.execution_attempts": {
+      "name": "execution_attempts",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approval_id": {
+          "name": "approval_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "attempt_owned_approval_fk": {
+          "name": "attempt_owned_approval_fk",
+          "tableFrom": "execution_attempts",
+          "tableTo": "order_approvals",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "approval_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "attempt_one_per_intent": {
+          "name": "attempt_one_per_intent",
+          "nullsNotDistinct": false,
+          "columns": [
+            "intent_id"
+          ]
+        },
+        "attempt_one_per_approval": {
+          "name": "attempt_one_per_approval",
+          "nullsNotDistinct": false,
+          "columns": [
+            "approval_id"
+          ]
+        },
+        "attempt_owned_identity": {
+          "name": "attempt_owned_identity",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "intent_id",
+            "account_id"
+          ]
+        }
+      },
+      "policies": {
+        "execution_attempts_owner": {
+          "name": "execution_attempts_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"execution_attempts\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"execution_attempts\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "attempt_fixture_valid": {
+          "name": "attempt_fixture_valid",
+          "value": "\"harborline\".\"execution_attempts\".\"source\"='contract_fixture' AND isfinite(\"harborline\".\"execution_attempts\".\"started_at\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.execution_dispatches": {
+      "name": "execution_dispatches",
+      "schema": "harborline",
+      "columns": {
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "claimed_at": {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "dispatch_owned_attempt_fk": {
+          "name": "dispatch_owned_attempt_fk",
+          "tableFrom": "execution_dispatches",
+          "tableTo": "execution_attempts",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "attempt_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "execution_dispatches_owner": {
+          "name": "execution_dispatches_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"execution_dispatches\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"execution_dispatches\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "dispatch_fixture_valid": {
+          "name": "dispatch_fixture_valid",
+          "value": "\"harborline\".\"execution_dispatches\".\"source\"='contract_fixture' AND isfinite(\"harborline\".\"execution_dispatches\".\"claimed_at\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.gateway_accounts": {
+      "name": "gateway_accounts",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "external_ref_id": {
+          "name": "external_ref_id",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_user_id": {
+          "name": "provider_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provisioning_state": {
+          "name": "provisioning_state",
+          "type": "provisioning_state",
+          "typeSchema": "harborline",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UNPROVISIONED'"
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "varchar(66)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "wallet_addresses": {
+          "name": "wallet_addresses",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
+        "active_operation_id": {
+          "name": "active_operation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_revision": {
+          "name": "policy_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "gateway_accounts_owner_id_profiles_auth_user_id_fk": {
+          "name": "gateway_accounts_owner_id_profiles_auth_user_id_fk",
+          "tableFrom": "gateway_accounts",
+          "tableTo": "profiles",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "auth_user_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "account_owned_active_operation_fk": {
+          "name": "account_owned_active_operation_fk",
+          "tableFrom": "gateway_accounts",
+          "tableTo": "investment_intents",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "active_operation_id",
+            "id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "gateway_accounts_owner_id_unique": {
+          "name": "gateway_accounts_owner_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "owner_id"
+          ]
+        },
+        "gateway_accounts_external_ref_id_unique": {
+          "name": "gateway_accounts_external_ref_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "external_ref_id"
+          ]
+        },
+        "gateway_accounts_provider_user_id_unique": {
+          "name": "gateway_accounts_provider_user_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "provider_user_id"
+          ]
+        }
+      },
+      "policies": {
+        "gateway_accounts_owner": {
+          "name": "gateway_accounts_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "\"harborline\".\"gateway_accounts\".\"owner_id\" = nullif(current_setting('harborline.owner_id', true), '')::uuid",
+          "withCheck": "\"harborline\".\"gateway_accounts\".\"owner_id\" = nullif(current_setting('harborline.owner_id', true), '')::uuid"
+        },
+        "gateway_accounts_key_lookup": {
+          "name": "gateway_accounts_key_lookup",
+          "as": "PERMISSIVE",
+          "for": "SELECT",
+          "to": [
+            "harborline_key_store"
+          ],
+          "using": "\"harborline\".\"gateway_accounts\".\"owner_id\" = nullif(current_setting('harborline.owner_id', true), '')::uuid"
+        }
+      },
+      "checkConstraints": {
+        "external_ref_format": {
+          "name": "external_ref_format",
+          "value": "\"harborline\".\"gateway_accounts\".\"external_ref_id\" ~ '^[A-Za-z0-9_-]{1,64}$'"
+        },
+        "signer_public_key_format": {
+          "name": "signer_public_key_format",
+          "value": "\"harborline\".\"gateway_accounts\".\"public_key\" IS NULL OR \"harborline\".\"gateway_accounts\".\"public_key\" ~ '^(02|03)[0-9a-fA-F]{64}$'"
+        },
+        "wallet_addresses_object": {
+          "name": "wallet_addresses_object",
+          "value": "jsonb_typeof(\"harborline\".\"gateway_accounts\".\"wallet_addresses\") = 'object'"
+        },
+        "positive_policy_revision": {
+          "name": "positive_policy_revision",
+          "value": "\"harborline\".\"gateway_accounts\".\"policy_revision\" >= 1"
+        },
+        "ready_account_identity": {
+          "name": "ready_account_identity",
+          "value": "\"harborline\".\"gateway_accounts\".\"provisioning_state\" <> 'READY' OR (\"harborline\".\"gateway_accounts\".\"provider_user_id\" IS NOT NULL AND \"harborline\".\"gateway_accounts\".\"public_key\" IS NOT NULL AND \"harborline\".\"gateway_accounts\".\"wallet_addresses\" <> '{}'::jsonb)"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.investment_intents": {
+      "name": "investment_intents",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operation_kind": {
+          "name": "operation_kind",
+          "type": "operation_kind",
+          "typeSchema": "harborline",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "asset_id": {
+          "name": "asset_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_qty": {
+          "name": "requested_qty",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "qty_unit": {
+          "name": "qty_unit",
+          "type": "quantity_unit",
+          "typeSchema": "harborline",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "calculation_id": {
+          "name": "calculation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "policy_revision": {
+          "name": "policy_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_key": {
+          "name": "request_key",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "intent_state",
+          "typeSchema": "harborline",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'DRAFT'"
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "preparation_generation": {
+          "name": "preparation_generation",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "preparation_lease_until": {
+          "name": "preparation_lease_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "review_expires_at": {
+          "name": "review_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "provider_order_id": {
+          "name": "provider_order_id",
+          "type": "varchar(128)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preparation_safety": {
+          "name": "preparation_safety",
+          "type": "preparation_safety",
+          "typeSchema": "harborline",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'unverified'"
+        },
+        "effects_possible": {
+          "name": "effects_possible",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "intent_account_created": {
+          "name": "intent_account_created",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "investment_intents_account_id_gateway_accounts_id_fk": {
+          "name": "investment_intents_account_id_gateway_accounts_id_fk",
+          "tableFrom": "investment_intents",
+          "tableTo": "gateway_accounts",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "intent_owned_calculation_fk": {
+          "name": "intent_owned_calculation_fk",
+          "tableFrom": "investment_intents",
+          "tableTo": "calculation_snapshots",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "calculation_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "investment_intents_provider_order_id_unique": {
+          "name": "investment_intents_provider_order_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "provider_order_id"
+          ]
+        },
+        "intent_account_identity": {
+          "name": "intent_account_identity",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "account_id"
+          ]
+        },
+        "intent_account_request_key": {
+          "name": "intent_account_request_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "request_key"
+          ]
+        }
+      },
+      "policies": {
+        "investment_intents_owner": {
+          "name": "investment_intents_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"investment_intents\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"investment_intents\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "intent_quantity_valid": {
+          "name": "intent_quantity_valid",
+          "value": "\"harborline\".\"investment_intents\".\"requested_qty\">0 AND \"harborline\".\"investment_intents\".\"requested_qty\"<>'NaN'::numeric"
+        },
+        "intent_request_key_valid": {
+          "name": "intent_request_key_valid",
+          "value": "\"harborline\".\"investment_intents\".\"request_key\" ~ '^[A-Za-z0-9_-]{1,64}$' AND \"harborline\".\"investment_intents\".\"request_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "intent_revisions_valid": {
+          "name": "intent_revisions_valid",
+          "value": "\"harborline\".\"investment_intents\".\"revision\">=1 AND \"harborline\".\"investment_intents\".\"policy_revision\">=1 AND \"harborline\".\"investment_intents\".\"preparation_generation\">=0"
+        },
+        "intent_units_valid": {
+          "name": "intent_units_valid",
+          "value": "(\"harborline\".\"investment_intents\".\"operation_kind\"='buy' AND \"harborline\".\"investment_intents\".\"qty_unit\"='quote' AND \"harborline\".\"investment_intents\".\"calculation_id\" IS NOT NULL) OR (\"harborline\".\"investment_intents\".\"operation_kind\"<>'buy' AND \"harborline\".\"investment_intents\".\"qty_unit\"='base')"
+        },
+        "intent_cash_precision": {
+          "name": "intent_cash_precision",
+          "value": "\"harborline\".\"investment_intents\".\"operation_kind\"='sell' OR \"harborline\".\"investment_intents\".\"requested_qty\"=trunc(\"harborline\".\"investment_intents\".\"requested_qty\",6)"
+        },
+        "intent_draft_unstarted": {
+          "name": "intent_draft_unstarted",
+          "value": "\"harborline\".\"investment_intents\".\"state\"<>'DRAFT' OR (\"harborline\".\"investment_intents\".\"preparation_generation\"=0 AND \"harborline\".\"investment_intents\".\"provider_order_id\" IS NULL AND NOT \"harborline\".\"investment_intents\".\"effects_possible\")"
+        },
+        "intent_preparation_lease": {
+          "name": "intent_preparation_lease",
+          "value": "\"harborline\".\"investment_intents\".\"state\"<>'PREPARING' OR (\"harborline\".\"investment_intents\".\"preparation_lease_until\" IS NOT NULL AND \"harborline\".\"investment_intents\".\"preparation_generation\">0)"
+        },
+        "intent_review_fields": {
+          "name": "intent_review_fields",
+          "value": "\"harborline\".\"investment_intents\".\"state\"<>'REVIEW_READY' OR (\"harborline\".\"investment_intents\".\"provider_order_id\" IS NOT NULL AND \"harborline\".\"investment_intents\".\"review_expires_at\" IS NOT NULL)"
+        },
+        "intent_fixture_states": {
+          "name": "intent_fixture_states",
+          "value": "\"harborline\".\"investment_intents\".\"state\" NOT IN ('REVIEW_READY','SUBMITTING') OR \"harborline\".\"investment_intents\".\"preparation_safety\"='contract_fixture'"
+        },
+        "intent_effects_fenced": {
+          "name": "intent_effects_fenced",
+          "value": "\"harborline\".\"investment_intents\".\"state\" NOT IN ('SUBMITTING','PENDING','UNKNOWN','COMPLETE','FAILED','CANCELED','MANUAL_REVIEW') OR \"harborline\".\"investment_intents\".\"effects_possible\""
+        },
+        "intent_timestamps_finite": {
+          "name": "intent_timestamps_finite",
+          "value": "isfinite(\"harborline\".\"investment_intents\".\"created_at\") AND isfinite(\"harborline\".\"investment_intents\".\"updated_at\") AND (\"harborline\".\"investment_intents\".\"preparation_lease_until\" IS NULL OR isfinite(\"harborline\".\"investment_intents\".\"preparation_lease_until\")) AND (\"harborline\".\"investment_intents\".\"review_expires_at\" IS NULL OR isfinite(\"harborline\".\"investment_intents\".\"review_expires_at\"))"
+        },
+        "intent_provider_id_valid": {
+          "name": "intent_provider_id_valid",
+          "value": "\"harborline\".\"investment_intents\".\"provider_order_id\" IS NULL OR \"harborline\".\"investment_intents\".\"provider_order_id\" ~ '^[A-Za-z0-9_-]{1,128}$'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.order_approvals": {
+      "name": "order_approvals",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "review_revision": {
+          "name": "review_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "terms_hash": {
+          "name": "terms_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "balance_snapshot_id": {
+          "name": "balance_snapshot_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "approved_at": {
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "order_approvals_owner_id_profiles_auth_user_id_fk": {
+          "name": "order_approvals_owner_id_profiles_auth_user_id_fk",
+          "tableFrom": "order_approvals",
+          "tableTo": "profiles",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "auth_user_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "approval_owned_intent_fk": {
+          "name": "approval_owned_intent_fk",
+          "tableFrom": "order_approvals",
+          "tableTo": "investment_intents",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "approval_review_fk": {
+          "name": "approval_review_fk",
+          "tableFrom": "order_approvals",
+          "tableTo": "order_reviews",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "intent_id",
+            "review_revision"
+          ],
+          "columnsTo": [
+            "intent_id",
+            "revision"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "approval_owned_balance_fk": {
+          "name": "approval_owned_balance_fk",
+          "tableFrom": "order_approvals",
+          "tableTo": "balance_snapshots",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "balance_snapshot_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "approval_intent_review": {
+          "name": "approval_intent_review",
+          "nullsNotDistinct": false,
+          "columns": [
+            "intent_id",
+            "review_revision"
+          ]
+        },
+        "approval_owned_identity": {
+          "name": "approval_owned_identity",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "intent_id",
+            "account_id"
+          ]
+        }
+      },
+      "policies": {
+        "order_approvals_owner": {
+          "name": "order_approvals_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"order_approvals\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "\"harborline\".\"order_approvals\".\"owner_id\"=nullif(current_setting('harborline.owner_id', true), '')::uuid AND exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"order_approvals\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "approval_fixture_valid": {
+          "name": "approval_fixture_valid",
+          "value": "\"harborline\".\"order_approvals\".\"source\"='contract_fixture' AND \"harborline\".\"order_approvals\".\"review_revision\">0 AND \"harborline\".\"order_approvals\".\"terms_hash\" ~ '^[0-9a-f]{64}$' AND isfinite(\"harborline\".\"order_approvals\".\"approved_at\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.order_recovery_observations": {
+      "name": "order_recovery_observations",
+      "schema": "harborline",
+      "columns": {
+        "read_id": {
+          "name": "read_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "disposition": {
+          "name": "disposition",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence": {
+          "name": "evidence",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "observation_hash": {
+          "name": "observation_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "recovery_observation_intent": {
+          "name": "recovery_observation_intent",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "intent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "recovery_observation_owned_read_fk": {
+          "name": "recovery_observation_owned_read_fk",
+          "tableFrom": "order_recovery_observations",
+          "tableTo": "order_recovery_reads",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "read_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "order_recovery_observations_owner": {
+          "name": "order_recovery_observations_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"order_recovery_observations\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"order_recovery_observations\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "recovery_observation_valid": {
+          "name": "recovery_observation_valid",
+          "value": "\"harborline\".\"order_recovery_observations\".\"source\"='contract_fixture' AND \"harborline\".\"order_recovery_observations\".\"kind\" IN ('observed','initialized','unavailable','not_found','invalid_response') AND \"harborline\".\"order_recovery_observations\".\"disposition\" IN ('applied','ignored','conflict') AND \"harborline\".\"order_recovery_observations\".\"observation_hash\" ~ '^[0-9a-f]{64}$' AND isfinite(\"harborline\".\"order_recovery_observations\".\"observed_at\") AND (\"harborline\".\"order_recovery_observations\".\"evidence\" IS NULL OR (jsonb_typeof(\"harborline\".\"order_recovery_observations\".\"evidence\")='object' AND octet_length(\"harborline\".\"order_recovery_observations\".\"evidence\"::text)<=4096))"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.order_recovery_reads": {
+      "name": "order_recovery_reads",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_revision": {
+          "name": "intent_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "binding": {
+          "name": "binding",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "recovery_read_intent_sequence": {
+          "name": "recovery_read_intent_sequence",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "intent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "recovery_owned_attempt_fk": {
+          "name": "recovery_owned_attempt_fk",
+          "tableFrom": "order_recovery_reads",
+          "tableTo": "execution_attempts",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "attempt_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "recovery_read_owned_identity": {
+          "name": "recovery_read_owned_identity",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "intent_id",
+            "account_id"
+          ]
+        },
+        "recovery_read_sequence_unique": {
+          "name": "recovery_read_sequence_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "sequence"
+          ]
+        }
+      },
+      "policies": {
+        "order_recovery_reads_owner": {
+          "name": "order_recovery_reads_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"order_recovery_reads\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"order_recovery_reads\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "recovery_read_valid": {
+          "name": "recovery_read_valid",
+          "value": "\"harborline\".\"order_recovery_reads\".\"source\"='contract_fixture' AND \"harborline\".\"order_recovery_reads\".\"intent_revision\">0 AND isfinite(\"harborline\".\"order_recovery_reads\".\"started_at\") AND jsonb_typeof(\"harborline\".\"order_recovery_reads\".\"binding\")='object' AND octet_length(\"harborline\".\"order_recovery_reads\".\"binding\"::text)<=2048"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.order_reviews": {
+      "name": "order_reviews",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "terms": {
+          "name": "terms",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "terms_hash": {
+          "name": "terms_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "maximum_debit": {
+          "name": "maximum_debit",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payloads_encrypted": {
+          "name": "payloads_encrypted",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tag": {
+          "name": "tag",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "encryption_key_version": {
+          "name": "encryption_key_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "review_owned_intent_fk": {
+          "name": "review_owned_intent_fk",
+          "tableFrom": "order_reviews",
+          "tableTo": "investment_intents",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "review_intent_revision": {
+          "name": "review_intent_revision",
+          "nullsNotDistinct": false,
+          "columns": [
+            "intent_id",
+            "revision"
+          ]
+        }
+      },
+      "policies": {
+        "order_reviews_owner": {
+          "name": "order_reviews_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"order_reviews\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"order_reviews\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "review_positive_revisions": {
+          "name": "review_positive_revisions",
+          "value": "\"harborline\".\"order_reviews\".\"revision\">0 AND \"harborline\".\"order_reviews\".\"encryption_key_version\">0"
+        },
+        "review_terms_bounded": {
+          "name": "review_terms_bounded",
+          "value": "jsonb_typeof(\"harborline\".\"order_reviews\".\"terms\")='object' AND octet_length(\"harborline\".\"order_reviews\".\"terms\"::text)<=65536 AND \"harborline\".\"order_reviews\".\"terms_hash\" ~ '^[0-9a-f]{64}$'"
+        },
+        "review_debit_valid": {
+          "name": "review_debit_valid",
+          "value": "\"harborline\".\"order_reviews\".\"maximum_debit\">0 AND \"harborline\".\"order_reviews\".\"maximum_debit\"<>'NaN'::numeric AND \"harborline\".\"order_reviews\".\"maximum_debit\"=trunc(\"harborline\".\"order_reviews\".\"maximum_debit\",6)"
+        },
+        "review_ciphertext_bounded": {
+          "name": "review_ciphertext_bounded",
+          "value": "octet_length(\"harborline\".\"order_reviews\".\"payloads_encrypted\") BETWEEN 1 AND 2200000 AND octet_length(\"harborline\".\"order_reviews\".\"nonce\")=12 AND octet_length(\"harborline\".\"order_reviews\".\"tag\")=16"
+        },
+        "review_expiry_bounded": {
+          "name": "review_expiry_bounded",
+          "value": "isfinite(\"harborline\".\"order_reviews\".\"created_at\") AND isfinite(\"harborline\".\"order_reviews\".\"expires_at\") AND \"harborline\".\"order_reviews\".\"expires_at\">\"harborline\".\"order_reviews\".\"created_at\" AND \"harborline\".\"order_reviews\".\"expires_at\"<=\"harborline\".\"order_reviews\".\"created_at\"+interval '20 seconds'"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.planning_policies": {
+      "name": "planning_policies",
+      "schema": "harborline",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "horizon_days": {
+          "name": "horizon_days",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "additional_buffer": {
+          "name": "additional_buffer",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "acknowledged_at": {
+          "name": "acknowledged_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "planning_policies_account_id_gateway_accounts_id_fk": {
+          "name": "planning_policies_account_id_gateway_accounts_id_fk",
+          "tableFrom": "planning_policies",
+          "tableTo": "gateway_accounts",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "planning_policies_owner": {
+          "name": "planning_policies_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"planning_policies\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline\".\"planning_policies\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "planning_horizon_range": {
+          "name": "planning_horizon_range",
+          "value": "\"harborline\".\"planning_policies\".\"horizon_days\" BETWEEN 1 AND 90"
+        },
+        "planning_buffer_valid": {
+          "name": "planning_buffer_valid",
+          "value": "\"harborline\".\"planning_policies\".\"additional_buffer\" >= 0 AND \"harborline\".\"planning_policies\".\"additional_buffer\" <> 'NaN'::numeric AND \"harborline\".\"planning_policies\".\"additional_buffer\" = trunc(\"harborline\".\"planning_policies\".\"additional_buffer\", 2)"
+        },
+        "planning_revision_positive": {
+          "name": "planning_revision_positive",
+          "value": "\"harborline\".\"planning_policies\".\"revision\" >= 1"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.profiles": {
+      "name": "profiles",
+      "schema": "harborline",
+      "columns": {
+        "auth_user_id": {
+          "name": "auth_user_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "timezone": {
+          "name": "timezone",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UTC'"
+        },
+        "pilot_enabled": {
+          "name": "pilot_enabled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "eligibility_status": {
+          "name": "eligibility_status",
+          "type": "eligibility_status",
+          "typeSchema": "harborline",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'UNKNOWN'"
+        },
+        "eligibility_checked_at": {
+          "name": "eligibility_checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "profiles_owner": {
+          "name": "profiles_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "\"harborline\".\"profiles\".\"auth_user_id\" = nullif(current_setting('harborline.owner_id', true), '')::uuid",
+          "withCheck": "\"harborline\".\"profiles\".\"auth_user_id\" = nullif(current_setting('harborline.owner_id', true), '')::uuid"
+        }
+      },
+      "checkConstraints": {
+        "profile_timezone_nonempty": {
+          "name": "profile_timezone_nonempty",
+          "value": "length(trim(\"harborline\".\"profiles\".\"timezone\")) > 0"
+        },
+        "eligibility_requires_check": {
+          "name": "eligibility_requires_check",
+          "value": "\"harborline\".\"profiles\".\"eligibility_status\" = 'UNKNOWN' OR \"harborline\".\"profiles\".\"eligibility_checked_at\" IS NOT NULL"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.recovery_work": {
+      "name": "recovery_work",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lease_token": {
+          "name": "lease_token",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lease_until": {
+          "name": "lease_until",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "next_check_at": {
+          "name": "next_check_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stopped": {
+          "name": "stopped",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'contract_fixture'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "recovery_work_due": {
+          "name": "recovery_work_due",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "stopped",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "next_check_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "recovery_work_owned_intent_fk": {
+          "name": "recovery_work_owned_intent_fk",
+          "tableFrom": "recovery_work",
+          "tableTo": "investment_intents",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "recovery_work_intent": {
+          "name": "recovery_work_intent",
+          "nullsNotDistinct": false,
+          "columns": [
+            "intent_id"
+          ]
+        }
+      },
+      "policies": {
+        "recovery_work_owner": {
+          "name": "recovery_work_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"recovery_work\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"recovery_work\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "recovery_work_valid": {
+          "name": "recovery_work_valid",
+          "value": "\"harborline\".\"recovery_work\".\"source\"='contract_fixture' AND \"harborline\".\"recovery_work\".\"attempts\">=0 AND isfinite(\"harborline\".\"recovery_work\".\"next_check_at\") AND isfinite(\"harborline\".\"recovery_work\".\"updated_at\") AND ((\"harborline\".\"recovery_work\".\"lease_token\" IS NULL AND \"harborline\".\"recovery_work\".\"lease_until\" IS NULL) OR (\"harborline\".\"recovery_work\".\"lease_token\" IS NOT NULL AND \"harborline\".\"recovery_work\".\"lease_until\" IS NOT NULL AND isfinite(\"harborline\".\"recovery_work\".\"lease_until\")))"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.settlement_balance_reads": {
+      "name": "settlement_balance_reads",
+      "schema": "harborline",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "order_read_id": {
+          "name": "order_read_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "basis": {
+          "name": "basis",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "started_at": {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "settlement_balance_read_sequence": {
+          "name": "settlement_balance_read_sequence",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "intent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "sequence",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "settlement_balance_read_owned_order_fk": {
+          "name": "settlement_balance_read_owned_order_fk",
+          "tableFrom": "settlement_balance_reads",
+          "tableTo": "order_recovery_reads",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "order_read_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "settlement_balance_read_owned_identity": {
+          "name": "settlement_balance_read_owned_identity",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "intent_id",
+            "account_id"
+          ]
+        }
+      },
+      "policies": {
+        "settlement_balance_reads_owner": {
+          "name": "settlement_balance_reads_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"settlement_balance_reads\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"settlement_balance_reads\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "settlement_balance_read_valid": {
+          "name": "settlement_balance_read_valid",
+          "value": "\"harborline\".\"settlement_balance_reads\".\"source\"='contract_fixture' AND jsonb_typeof(\"harborline\".\"settlement_balance_reads\".\"basis\")='object' AND octet_length(\"harborline\".\"settlement_balance_reads\".\"basis\"::text)<=4096 AND isfinite(\"harborline\".\"settlement_balance_reads\".\"started_at\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.settlement_balances": {
+      "name": "settlement_balances",
+      "schema": "harborline",
+      "columns": {
+        "balance_read_id": {
+          "name": "balance_read_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sequence": {
+          "name": "sequence",
+          "type": "bigserial",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "read_id": {
+          "name": "read_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_revision": {
+          "name": "intent_revision",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_user_id": {
+          "name": "provider_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cash_id": {
+          "name": "cash_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "available": {
+          "name": "available",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total": {
+          "name": "total",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "held": {
+          "name": "held",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "recorded_at": {
+          "name": "recorded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "settlement_balance_intent": {
+          "name": "settlement_balance_intent",
+          "columns": [
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "intent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "recorded_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "settlement_balance_owned_capture_fk": {
+          "name": "settlement_balance_owned_capture_fk",
+          "tableFrom": "settlement_balances",
+          "tableTo": "settlement_balance_reads",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "balance_read_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "settlement_balance_owned_read_fk": {
+          "name": "settlement_balance_owned_read_fk",
+          "tableFrom": "settlement_balances",
+          "tableTo": "order_recovery_reads",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "read_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "settlement_balance_owned_identity": {
+          "name": "settlement_balance_owned_identity",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "intent_id",
+            "account_id"
+          ]
+        },
+        "settlement_balance_read_unique": {
+          "name": "settlement_balance_read_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "balance_read_id"
+          ]
+        }
+      },
+      "policies": {
+        "settlement_balances_owner": {
+          "name": "settlement_balances_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"settlement_balances\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"settlement_balances\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "settlement_balance_valid": {
+          "name": "settlement_balance_valid",
+          "value": "\"harborline\".\"settlement_balances\".\"source\"='contract_fixture' AND \"harborline\".\"settlement_balances\".\"intent_revision\">0 AND \"harborline\".\"settlement_balances\".\"available\">=0 AND \"harborline\".\"settlement_balances\".\"held\">=0 AND \"harborline\".\"settlement_balances\".\"total\"=\"harborline\".\"settlement_balances\".\"available\"+\"harborline\".\"settlement_balances\".\"held\" AND \"harborline\".\"settlement_balances\".\"total\"<>'NaN'::numeric AND isfinite(\"harborline\".\"settlement_balances\".\"observed_at\") AND isfinite(\"harborline\".\"settlement_balances\".\"recorded_at\") AND \"harborline\".\"settlement_balances\".\"recorded_at\">=\"harborline\".\"settlement_balances\".\"observed_at\""
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline.settlement_verifications": {
+      "name": "settlement_verifications",
+      "schema": "harborline",
+      "columns": {
+        "baseline_balance_id": {
+          "name": "baseline_balance_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intent_id": {
+          "name": "intent_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observation_id": {
+          "name": "observation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "read_id": {
+          "name": "read_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "operator_id": {
+          "name": "operator_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_key": {
+          "name": "request_key",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "proof_hash": {
+          "name": "proof_hash",
+          "type": "varchar(64)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actual_debit": {
+          "name": "actual_debit",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intervening_credits": {
+          "name": "intervening_credits",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intervening_debits": {
+          "name": "intervening_debits",
+          "type": "numeric(38, 18)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "evidence_references": {
+          "name": "evidence_references",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "varchar(16)",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'manual'"
+        },
+        "source": {
+          "name": "source",
+          "type": "varchar(32)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "verified_at": {
+          "name": "verified_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "settlement_verified_baseline_fk": {
+          "name": "settlement_verified_baseline_fk",
+          "tableFrom": "settlement_verifications",
+          "tableTo": "balance_snapshots",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "baseline_balance_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "settlement_verification_owned_balance_fk": {
+          "name": "settlement_verification_owned_balance_fk",
+          "tableFrom": "settlement_verifications",
+          "tableTo": "settlement_balances",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "observation_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        },
+        "settlement_verification_owned_read_fk": {
+          "name": "settlement_verification_owned_read_fk",
+          "tableFrom": "settlement_verifications",
+          "tableTo": "order_recovery_reads",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "read_id",
+            "intent_id",
+            "account_id"
+          ],
+          "columnsTo": [
+            "id",
+            "intent_id",
+            "account_id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "settlement_verification_intent": {
+          "name": "settlement_verification_intent",
+          "nullsNotDistinct": false,
+          "columns": [
+            "intent_id"
+          ]
+        },
+        "settlement_verification_request": {
+          "name": "settlement_verification_request",
+          "nullsNotDistinct": false,
+          "columns": [
+            "account_id",
+            "request_key"
+          ]
+        }
+      },
+      "policies": {
+        "settlement_verifications_owner": {
+          "name": "settlement_verifications_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_app"
+          ],
+          "using": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"settlement_verifications\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists(select 1 from harborline.gateway_accounts a where a.id=\"harborline\".\"settlement_verifications\".\"account_id\" and a.owner_id=nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "settlement_verification_valid": {
+          "name": "settlement_verification_valid",
+          "value": "\"harborline\".\"settlement_verifications\".\"source\"='contract_fixture' AND \"harborline\".\"settlement_verifications\".\"method\"='manual' AND \"harborline\".\"settlement_verifications\".\"proof_hash\" ~ '^[0-9a-f]{64}$' AND \"harborline\".\"settlement_verifications\".\"actual_debit\">=0 AND \"harborline\".\"settlement_verifications\".\"intervening_credits\">=0 AND \"harborline\".\"settlement_verifications\".\"intervening_debits\">=0 AND \"harborline\".\"settlement_verifications\".\"actual_debit\"<>'NaN'::numeric AND \"harborline\".\"settlement_verifications\".\"intervening_credits\"<>'NaN'::numeric AND \"harborline\".\"settlement_verifications\".\"intervening_debits\"<>'NaN'::numeric AND jsonb_typeof(\"harborline\".\"settlement_verifications\".\"evidence_references\")='object' AND octet_length(\"harborline\".\"settlement_verifications\".\"evidence_references\"::text)<=2048 AND isfinite(\"harborline\".\"settlement_verifications\".\"verified_at\")"
+        }
+      },
+      "isRLSEnabled": true
+    },
+    "harborline_private.signer_secrets": {
+      "name": "signer_secrets",
+      "schema": "harborline_private",
+      "columns": {
+        "account_id": {
+          "name": "account_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "encrypted_key": {
+          "name": "encrypted_key",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "nonce": {
+          "name": "nonce",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "tag": {
+          "name": "tag",
+          "type": "bytea",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "encryption_key_version": {
+          "name": "encryption_key_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "signer_secrets_account_id_gateway_accounts_id_fk": {
+          "name": "signer_secrets_account_id_gateway_accounts_id_fk",
+          "tableFrom": "signer_secrets",
+          "tableTo": "gateway_accounts",
+          "schemaTo": "harborline",
+          "columnsFrom": [
+            "account_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "restrict",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {
+        "signer_secrets_owner": {
+          "name": "signer_secrets_owner",
+          "as": "PERMISSIVE",
+          "for": "ALL",
+          "to": [
+            "harborline_key_store"
+          ],
+          "using": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline_private\".\"signer_secrets\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)",
+          "withCheck": "exists (select 1 from harborline.gateway_accounts a where a.id = \"harborline_private\".\"signer_secrets\".\"account_id\" and a.owner_id = nullif(current_setting('harborline.owner_id', true), '')::uuid)"
+        }
+      },
+      "checkConstraints": {
+        "ciphertext_nonempty": {
+          "name": "ciphertext_nonempty",
+          "value": "octet_length(\"harborline_private\".\"signer_secrets\".\"encrypted_key\") > 0"
+        },
+        "nonce_96_bits": {
+          "name": "nonce_96_bits",
+          "value": "octet_length(\"harborline_private\".\"signer_secrets\".\"nonce\") = 12"
+        },
+        "tag_128_bits": {
+          "name": "tag_128_bits",
+          "value": "octet_length(\"harborline_private\".\"signer_secrets\".\"tag\") = 16"
+        },
+        "positive_encryption_key_version": {
+          "name": "positive_encryption_key_version",
+          "value": "\"harborline_private\".\"signer_secrets\".\"encryption_key_version\" >= 1"
+        }
+      },
+      "isRLSEnabled": true
+    }
+  },
+  "enums": {
+    "harborline.commitment_status": {
+      "name": "commitment_status",
+      "schema": "harborline",
+      "values": [
+        "outstanding",
+        "paid",
+        "removed"
+      ]
+    },
+    "harborline.eligibility_status": {
+      "name": "eligibility_status",
+      "schema": "harborline",
+      "values": [
+        "UNKNOWN",
+        "ELIGIBLE",
+        "INELIGIBLE"
+      ]
+    },
+    "harborline.intent_state": {
+      "name": "intent_state",
+      "schema": "harborline",
+      "values": [
+        "DRAFT",
+        "PREPARING",
+        "REVIEW_READY",
+        "SUBMITTING",
+        "PENDING",
+        "COMPLETE",
+        "EXPIRED",
+        "REJECTED",
+        "ABANDONED",
+        "UNKNOWN",
+        "FAILED",
+        "CANCELED",
+        "MANUAL_REVIEW"
+      ]
+    },
+    "harborline.operation_kind": {
+      "name": "operation_kind",
+      "schema": "harborline",
+      "values": [
+        "buy",
+        "sell",
+        "exit"
+      ]
+    },
+    "harborline.preparation_safety": {
+      "name": "preparation_safety",
+      "schema": "harborline",
+      "values": [
+        "unverified",
+        "contract_fixture"
+      ]
+    },
+    "harborline.provisioning_state": {
+      "name": "provisioning_state",
+      "schema": "harborline",
+      "values": [
+        "UNPROVISIONED",
+        "PROVISIONING",
+        "READY",
+        "FAILED"
+      ]
+    },
+    "harborline.quantity_unit": {
+      "name": "quantity_unit",
+      "schema": "harborline",
+      "values": [
+        "base",
+        "quote"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

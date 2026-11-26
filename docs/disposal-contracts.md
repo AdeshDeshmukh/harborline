@@ -2,7 +2,7 @@
 
 ## Status and trust boundary
 
-This is the first of two focused local HL-28 slices. It introduces pure sale rules
+This document records the first of two focused local HL-28 slices. It introduces pure sale rules
 and the [operations guide](operations.md). It does not implement a persisted sale,
 operator authentication, an approval screen/API, execution, provider reads, stock
 snapshots in the database, sale receipt or transfer. Full HL-28 acceptance and real
@@ -15,6 +15,10 @@ identity, supported catalog metadata and authorized observations. Never deserial
 an expected binding, trusted quote or manual movement attestation directly from a
 browser request. Review/quote objects contain internal account/customer IDs and
 payload digests: they are not public DTOs and need explicit safe projection later.
+
+The subsequent [HL-28B lifecycle](disposal-lifecycle.md) adds persisted fixture
+approval, execution/recovery, stock/cash clearance and saved views. Its runtime
+sale route remains disabled; neither slice establishes a live exit.
 
 ## Interfaces
 
@@ -148,7 +152,7 @@ aggregation, fee rounding or minimum proceeds guarantees.
 
 ## Local verification
 
-After the independent review and one regression-tested fix pass, all 781 tests
+At the HL-28A merge, after independent review and one regression-tested fix pass, all 781 tests
 passed: 6 offline provider-script, 504 unit/contract and 271 isolated PostgreSQL.
 The new sale-contract coverage comprises 115 tests. Lint, typecheck, production
 build, post-build typecheck and tracked/new-file whitespace checks passed.
@@ -157,3 +161,7 @@ browser check was needed because this slice adds no UI. No authenticated cloud,
 provider, funded sale or return experiment was performed. The minor zero-fill
 price normalization limit above remains deferred; it grants no release/execution
 capability and is not an execution-price field in the result.
+
+HL-28B normalizes zero-filled reported VWAP to null before persistence, so its
+receipt never presents a zero-fill execution price. The original pure helper
+compatibility behavior remains as documented above.

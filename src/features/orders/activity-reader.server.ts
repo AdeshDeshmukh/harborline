@@ -1,7 +1,7 @@
 import "server-only";
 import {and,desc,eq,sql} from "drizzle-orm";
 import {DatabaseError,getDatabase} from "../../server/db";
-import {auditEvents,balanceSnapshots,calculationSnapshots,gatewayAccounts,investmentIntents,orderApprovals,orderRecoveryObservations,orderRecoveryReads,orderReviews,settlementBalances,settlementVerifications} from "../../server/db/schema";
+import {disposalOutcomes,disposalSettlements,auditEvents,balanceSnapshots,calculationSnapshots,gatewayAccounts,investmentIntents,orderApprovals,orderRecoveryObservations,orderRecoveryReads,orderReviews,settlementBalances,settlementVerifications} from "../../server/db/schema";
 import {isUuid} from "../../server/env";
 import type {OwnerContext} from "../identity/access.server";
 import {validateCalendarDate} from "../planning/validation";
@@ -10,15 +10,16 @@ import {ActivityError,type ActivityPage,type ActivitySummary,type OrderRecord} f
 import {decodeActivityCursor,encodeActivityCursor} from "./activity-cursor.server";
 import {projectActualEvidence} from "./activity-projection";
 import {projectStoredReview} from "./reviews.server";
+import {loadSaleActivity} from "./disposal-reader.server";
 type Tx=Parameters<Parameters<ReturnType<typeof getDatabase>["withOwner"]>[1]>[0];
 type Account=Pick<typeof gatewayAccounts.$inferSelect,"id"|"activeOperationId">;
 const publicReview={intentId:orderReviews.intentId,revision:orderReviews.revision,terms:orderReviews.terms,termsHash:orderReviews.termsHash,maximumDebit:orderReviews.maximumDebit,expiresAt:orderReviews.expiresAt};
-const summarySelection={id:investmentIntents.id,state:investmentIntents.state,source:investmentIntents.preparationSafety,requestedQuantity:investmentIntents.requestedQty,quantityUnit:investmentIntents.qtyUnit,assetId:investmentIntents.assetId,createdAt:investmentIntents.createdAt,updatedAt:investmentIntents.updatedAt,
+const summarySelection={id:investmentIntents.id,operationKind:investmentIntents.operationKind,state:investmentIntents.state,source:investmentIntents.preparationSafety,requestedQuantity:investmentIntents.requestedQty,quantityUnit:investmentIntents.qtyUnit,assetId:investmentIntents.assetId,createdAt:investmentIntents.createdAt,updatedAt:investmentIntents.updatedAt,
  sortAt:sql<string>`to_char(${investmentIntents.createdAt} AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`,
- requiresReview:sql<boolean>`(${investmentIntents.state}='MANUAL_REVIEW' OR EXISTS(SELECT 1 FROM ${orderRecoveryObservations} o WHERE o.account_id="investment_intents"."account_id" AND o.intent_id="investment_intents"."id" AND o.disposition='conflict') OR EXISTS(SELECT 1 FROM ${auditEvents} a WHERE a.account_id="investment_intents"."account_id" AND a.intent_id="investment_intents"."id" AND a.event_type='execution_observed' AND a.redacted_metadata->>'disposition'='conflict'))`,
- settlementVerified:sql<boolean>`EXISTS(SELECT 1 FROM ${settlementVerifications} v WHERE v.account_id="investment_intents"."account_id" AND v.intent_id="investment_intents"."id")`};
-type SummaryRow={id:string;state:ActivitySummary["state"];source:ActivitySummary["source"];requestedQuantity:string;quantityUnit:ActivitySummary["quantityUnit"];assetId:string;createdAt:Date;updatedAt:Date;sortAt:string;requiresReview:boolean;settlementVerified:boolean};
-function summary(r:SummaryRow,a:Account):ActivitySummary{return {id:r.id,state:r.state,source:r.source,requestedQuantity:parseAmount(r.requestedQuantity),quantityUnit:r.quantityUnit,assetId:r.assetId,assetLabel:null,quoteCurrency:null,createdAt:r.createdAt.toISOString(),updatedAt:r.updatedAt.toISOString(),requiresReview:r.requiresReview,settlementVerified:r.settlementVerified,reservationHeld:a.activeOperationId===r.id,canExecute:false};}
+ requiresReview:sql<boolean>`(EXISTS(SELECT 1 FROM ${disposalOutcomes} s WHERE s.account_id="investment_intents"."account_id" AND s.intent_id="investment_intents"."id" AND s.disposition='conflict') OR ${investmentIntents.state}='MANUAL_REVIEW' OR EXISTS(SELECT 1 FROM ${orderRecoveryObservations} o WHERE o.account_id="investment_intents"."account_id" AND o.intent_id="investment_intents"."id" AND o.disposition='conflict') OR EXISTS(SELECT 1 FROM ${auditEvents} a WHERE a.account_id="investment_intents"."account_id" AND a.intent_id="investment_intents"."id" AND a.event_type='execution_observed' AND a.redacted_metadata->>'disposition'='conflict'))`,
+ settlementVerified:sql<boolean>`EXISTS(SELECT 1 FROM ${disposalSettlements} s WHERE s.account_id="investment_intents"."account_id" AND s.intent_id="investment_intents"."id") OR EXISTS(SELECT 1 FROM ${settlementVerifications} v WHERE v.account_id="investment_intents"."account_id" AND v.intent_id="investment_intents"."id")`};
+type SummaryRow={id:string;operationKind:NonNullable<ActivitySummary["operationKind"]>;state:ActivitySummary["state"];source:ActivitySummary["source"];requestedQuantity:string;quantityUnit:ActivitySummary["quantityUnit"];assetId:string;createdAt:Date;updatedAt:Date;sortAt:string;requiresReview:boolean;settlementVerified:boolean};
+function summary(r:SummaryRow,a:Account):ActivitySummary{return {id:r.id,operationKind:r.operationKind,state:r.state,source:r.source,requestedQuantity:parseAmount(r.requestedQuantity),quantityUnit:r.quantityUnit,assetId:r.assetId,assetLabel:null,quoteCurrency:null,createdAt:r.createdAt.toISOString(),updatedAt:r.updatedAt.toISOString(),requiresReview:r.requiresReview,settlementVerified:r.settlementVerified,reservationHeld:a.activeOperationId===r.id,canExecute:false};}
 export function createActivityReader(database:ReturnType<typeof getDatabase>=getDatabase(),clock:()=>Date=()=>new Date()){
  async function transaction<T>(ctx:OwnerContext,work:(tx:Tx,a:Account)=>Promise<T>){
   let domain:ActivityError|undefined;
@@ -45,6 +46,7 @@ export function createActivityReader(database:ReturnType<typeof getDatabase>=get
    return transaction(ctx,async(tx,a)=>{
     const [i]=await tx.select({...summarySelection,providerOrderId:investmentIntents.providerOrderId,calculationId:investmentIntents.calculationId,policyRevision:investmentIntents.policyRevision,preparationGeneration:investmentIntents.preparationGeneration}).from(investmentIntents).where(and(eq(investmentIntents.id,id),eq(investmentIntents.accountId,a.id)));
     if(!i)throw new ActivityError("not_found");
+    if(i.operationKind==="sell")return loadSaleActivity(tx,ctx,summary(i,a),i.providerOrderId,i.preparationGeneration,i.policyRevision);
     const [approved]=await tx.select({reviewRevision:orderApprovals.reviewRevision,termsHash:orderApprovals.termsHash,approvedAt:orderApprovals.approvedAt,balanceId:orderApprovals.balanceSnapshotId}).from(orderApprovals).where(and(eq(orderApprovals.intentId,id),eq(orderApprovals.accountId,a.id),eq(orderApprovals.ownerId,ctx.ownerId))).orderBy(desc(orderApprovals.reviewRevision)).limit(1);
     let approval:OrderRecord["approval"]=null,quoteCurrency:string|null=null;
     if(approved){

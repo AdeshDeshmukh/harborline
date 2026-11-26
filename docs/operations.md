@@ -16,7 +16,7 @@ service's configuration.
 | `/api/internal/reconcile` | Verifies `CRON_SECRET`, but its default handler has no worker attached and still returns 503. A secret alone does not enable reconciliation. |
 | Saved activity and receipts | Owner-scoped local records; manual reload does not run provider recovery or update external balances. |
 | HL-28A sale helpers | Pure fixture validation and arithmetic only. `canApprove`, `canExecute` and `canRelease` do not grant authority; applicable result fields are always false. |
-| Disposal and return UI/API | Not implemented by HL-28A. There is no usable sale or withdrawal endpoint in this slice. |
+| HL-28B disposal UI/API | Saved owner-only sale review/receipt and fictional public examples. POST `/api/disposals/review` returns 503 after valid session/request checks; no live service or transfer endpoint. See [lifecycle](disposal-lifecycle.md). |
 | `TRADING_ENABLED`, `SETTLEMENT_AUTO_RELEASE` | Proposed entries in `.env.example`, not implemented runtime kill switches. Changing them is not a verified way to stop a future deployed service. |
 | `APP_MODE=pilot` and credentials | May permit the existing local database/auth/client primitives to initialize. They do not attach a reviewed live trading workflow. |
 
@@ -36,7 +36,9 @@ it does not turn an operator into the customer's owner context.
 Future composition must independently verify the signed-in owner, owned provider
 mapping, supported listing/network, customer eligibility, operator permission
 where required, and exact approved terms. Never accept these as trusted request
-fields. HL-28A has no authenticated workflow or operator allowlist; its normalized
+fields. HL-28B fixture repositories require an independent injected trusted
+operator allowlist; no HTTP composition authenticates an operator or enables
+a sale. HL-28A itself has no authenticated workflow or operator allowlist; its normalized
 bindings and `contract_fixture` labels are data contracts, not access controls.
 
 Creating a new review, approving it, executing a sale and returning funds are
@@ -62,7 +64,11 @@ none of those financial permissions.
    have moved assets. Do not replace actual quantities with the old quote.
 6. Use only a reviewed reconciliation/clearance workflow with exact evidence
    links and independent stock and cash accounting. Current maintenance stores
-   support fixture buys; they do not clear sells. The pure HL-28A helper cannot
+   support fixture buys. The separate HL-28B fixture clearance requires original
+   approval, dispatch/send authorization, completed send callback, latest terminal
+   order evidence and matching fresh stock/cash proof in one atomic transaction.
+   Pausing new writes permits authorized read investigation and recording
+   already-issued callbacks; it does not grant clearance or resend. The pure HL-28A helper cannot
    release a reservation or persist a verification.
 7. Inform the account owner of what is known, what remains unknown and the next
    read-only check. Sanitize shared records; do not send secrets or post private

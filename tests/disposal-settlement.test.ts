@@ -90,3 +90,8 @@ test("known zero-fill VWAP limit cannot become a reported execution price or cas
  const p={...proof(),cashAfter:cash("2000",1000),stockAfter:{...holding,observedAt:at(1000).toISOString()}};
  const result=reconcileDisposalFixture(review(),observation,p,at(1000));expect(result.actualNetQuoteCredit).toBe("0");expect(result).not.toHaveProperty("averagePriceQuote");
 });
+test("an explicitly bound approval baseline may follow review creation",()=>{
+ const r=review(),approvedHolding={...holding,observedAt:at(1000).toISOString()},approvedCash=cash("2000",1000),observation={...actual(),observedAt:at(2000).toISOString()},p={...proof(),cashBefore:approvedCash,cashAfter:cash("2099.5",2000),stockAfter:{...proof().stockAfter,observedAt:at(2000).toISOString()}};
+ expect(reconcileDisposalFixture(r,observation,p,at(2000),{approvedAt:at(1000).toISOString(),holding:approvedHolding,cash:approvedCash})).toMatchObject({actualNetQuoteCredit:"99.5"});
+ expect(()=>reconcileDisposalFixture(r,observation,{...p,cashBefore:cash("0",1000),cashAfter:cash("99.5",2000)},at(2000),{approvedAt:at(1000).toISOString(),holding:approvedHolding,cash:approvedCash})).toThrow();
+});
