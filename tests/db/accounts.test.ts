@@ -68,7 +68,7 @@ beforeAll(async () => {
 });
 afterAll(async () => { await admin.end(); });
 
-test("account and planning migrations install thirteen tables with forced RLS", async () => {
+test("account and planning migrations install fifteen tables with forced RLS", async () => {
   const result = await admin.query("SELECT relname, relrowsecurity, relforcerowsecurity FROM pg_class WHERE relnamespace IN ('harborline'::regnamespace, 'harborline_private'::regnamespace) AND relkind='r' ORDER BY relname");
   expect(result.rows).toEqual([
     { relname: "audit_events", relrowsecurity: true, relforcerowsecurity: true },
@@ -80,6 +80,8 @@ test("account and planning migrations install thirteen tables with forced RLS", 
     { relname: "gateway_accounts", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "investment_intents", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "order_approvals", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "order_recovery_observations", relrowsecurity: true, relforcerowsecurity: true },
+    { relname: "order_recovery_reads", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "order_reviews", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "planning_policies", relrowsecurity: true, relforcerowsecurity: true },
     { relname: "profiles", relrowsecurity: true, relforcerowsecurity: true },
@@ -106,7 +108,7 @@ test("migration reruns preserve existing records instead of reapplying the found
   const before = (await admin.query("SELECT count(*)::integer AS n FROM harborline.gateway_accounts")).rows;
   await runMigrations(connectionString, "test");
   expect((await admin.query("SELECT count(*)::integer AS n FROM harborline.gateway_accounts")).rows).toEqual(before);
-  expect((await admin.query("SELECT count(*)::integer AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 7 }]);
+  expect((await admin.query("SELECT count(*)::integer AS n FROM drizzle.__drizzle_migrations")).rows).toEqual([{ n: 8 }]);
 });
 
 test("runtime wrapper refuses a migration administrator connection", async () => {

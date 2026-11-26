@@ -3,6 +3,7 @@ import { bigserial, boolean, check, customType, date, foreignKey, index, integer
 import type { CalculationInput } from "../../features/planning/snapshot-types";
 import type { AllowanceResult } from "../../features/planning/types";
 import type { ReviewTerms } from "../../features/orders/review-types";
+import type {RecoveryBinding,RecoveryDisposition,RecoveryEvidence,RecoveryKind} from "../../features/orders/recovery-types";
 
 const app = pgSchema("harborline");
 const privateSchema = pgSchema("harborline_private");
@@ -269,4 +270,28 @@ export const executionDispatches = app.table("execution_dispatches", {
   pgPolicy("execution_dispatches_owner", { for: "all", to: appRole,
     using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})`,
     withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${table.accountId} and a.owner_id=${owner})` }),
+]).enableRLS();
+
+export const orderRecoveryReads = app.table("order_recovery_reads", {
+  id: uuid("id").primaryKey().defaultRandom(), accountId: uuid("account_id").notNull(), intentId: uuid("intent_id").notNull(), attemptId: uuid("attempt_id").notNull(),
+  sequence: bigserial("sequence", { mode: "bigint" }).notNull(), intentRevision: integer("intent_revision").notNull(),
+  binding: jsonb("binding").$type<RecoveryBinding>().notNull(), source: varchar("source", { length: 32 }).$type<"contract_fixture">().notNull(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+}, (t): PgTableExtraConfigValue[] => [
+  unique("recovery_read_owned_identity").on(t.id, t.intentId, t.accountId), unique("recovery_read_sequence_unique").on(t.sequence),
+  index("recovery_read_intent_sequence").on(t.accountId, t.intentId, t.sequence),
+  foreignKey({ columns: [t.attemptId, t.intentId, t.accountId], foreignColumns: [executionAttempts.id, executionAttempts.intentId, executionAttempts.accountId], name: "recovery_owned_attempt_fk" }).onDelete("restrict"),
+  check("recovery_read_valid", sql`${t.source}='contract_fixture' AND ${t.intentRevision}>0 AND isfinite(${t.startedAt}) AND jsonb_typeof(${t.binding})='object' AND octet_length(${t.binding}::text)<=2048`),
+  pgPolicy("order_recovery_reads_owner", { for: "all", to: appRole, using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`, withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})` }),
+]).enableRLS();
+export const orderRecoveryObservations = app.table("order_recovery_observations", {
+  readId: uuid("read_id").primaryKey(), accountId: uuid("account_id").notNull(), intentId: uuid("intent_id").notNull(),
+  kind: varchar("kind", { length: 32 }).$type<RecoveryKind>().notNull(), disposition: varchar("disposition", { length: 16 }).$type<RecoveryDisposition>().notNull(),
+  evidence: jsonb("evidence").$type<RecoveryEvidence>(), observationHash: varchar("observation_hash", { length: 64 }).notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(), source: varchar("source", { length: 32 }).$type<"contract_fixture">().notNull(),
+}, (t): PgTableExtraConfigValue[] => [
+  foreignKey({ columns: [t.readId, t.intentId, t.accountId], foreignColumns: [orderRecoveryReads.id, orderRecoveryReads.intentId, orderRecoveryReads.accountId], name: "recovery_observation_owned_read_fk" }).onDelete("restrict"),
+  index("recovery_observation_intent").on(t.accountId, t.intentId),
+  check("recovery_observation_valid", sql`${t.source}='contract_fixture' AND ${t.kind} IN ('observed','initialized','unavailable','not_found','invalid_response') AND ${t.disposition} IN ('applied','ignored','conflict') AND ${t.observationHash} ~ '^[0-9a-f]{64}$' AND isfinite(${t.observedAt}) AND (${t.evidence} IS NULL OR (jsonb_typeof(${t.evidence})='object' AND octet_length(${t.evidence}::text)<=4096))`),
+  pgPolicy("order_recovery_observations_owner", { for: "all", to: appRole, using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`, withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})` }),
 ]).enableRLS();
