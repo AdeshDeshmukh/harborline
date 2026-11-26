@@ -130,8 +130,9 @@ the actual evidence. A receipt must not treat the latter as a new fill timestamp
 The public view explicitly projects status, actual amounts, partial evidence,
 latest read metadata and held/manual flags. Raw response fields, failure text,
 keys, payloads and signing envelopes are not stored in observations or audit
-metadata. The view always reports `canExecute: false` and
-`settlementVerified: false`.
+metadata. The view always reports `canExecute: false`. HL-26 projects
+`settlementVerified: true` only when an owned immutable fixture verification exists;
+a provider status alone leaves it false.
 
 ## Trade-offs and remaining limits
 

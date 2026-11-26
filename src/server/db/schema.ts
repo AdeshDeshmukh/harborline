@@ -295,3 +295,53 @@ export const orderRecoveryObservations = app.table("order_recovery_observations"
   check("recovery_observation_valid", sql`${t.source}='contract_fixture' AND ${t.kind} IN ('observed','initialized','unavailable','not_found','invalid_response') AND ${t.disposition} IN ('applied','ignored','conflict') AND ${t.observationHash} ~ '^[0-9a-f]{64}$' AND isfinite(${t.observedAt}) AND (${t.evidence} IS NULL OR (jsonb_typeof(${t.evidence})='object' AND octet_length(${t.evidence}::text)<=4096))`),
   pgPolicy("order_recovery_observations_owner", { for: "all", to: appRole, using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`, withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})` }),
 ]).enableRLS();
+
+export const recoveryWork = app.table("recovery_work", {
+  id: uuid("id").primaryKey().defaultRandom(), accountId: uuid("account_id").notNull(), intentId: uuid("intent_id").notNull(),
+  leaseToken: uuid("lease_token"), leaseUntil: timestamp("lease_until", { withTimezone: true }), attempts: integer("attempts").notNull().default(0),
+  nextCheckAt: timestamp("next_check_at", { withTimezone: true }).notNull(), stopped: boolean("stopped").notNull().default(false),
+  source: varchar("source", { length: 32 }).notNull().default("contract_fixture"), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+}, t => [
+  unique("recovery_work_intent").on(t.intentId), index("recovery_work_due").on(t.accountId, t.stopped, t.nextCheckAt),
+  foreignKey({ columns: [t.intentId, t.accountId], foreignColumns: [investmentIntents.id, investmentIntents.accountId], name: "recovery_work_owned_intent_fk" }).onDelete("restrict"),
+  check("recovery_work_valid", sql`${t.source}='contract_fixture' AND ${t.attempts}>=0 AND isfinite(${t.nextCheckAt}) AND isfinite(${t.updatedAt}) AND ((${t.leaseToken} IS NULL AND ${t.leaseUntil} IS NULL) OR (${t.leaseToken} IS NOT NULL AND ${t.leaseUntil} IS NOT NULL AND isfinite(${t.leaseUntil})))`),
+  pgPolicy("recovery_work_owner", { for: "all", to: appRole, using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`, withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})` }),
+]).enableRLS();
+export const settlementBalances = app.table("settlement_balances", {
+  balanceReadId: uuid("balance_read_id").notNull(),
+  sequence: bigserial("sequence", { mode: "bigint" }).notNull(),
+  id: uuid("id").primaryKey().defaultRandom(), accountId: uuid("account_id").notNull(), intentId: uuid("intent_id").notNull(), readId: uuid("read_id").notNull(),
+  intentRevision: integer("intent_revision").notNull(), providerUserId: uuid("provider_user_id").notNull(), cashId: uuid("cash_id").notNull(),
+  available: numeric("available", { precision: 38, scale: 18 }).notNull(), total: numeric("total", { precision: 38, scale: 18 }).notNull(), held: numeric("held", { precision: 38, scale: 18 }).notNull(),
+  observedAt: timestamp("observed_at", { withTimezone: true }).notNull(), recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(), source: varchar("source", { length: 32 }).notNull(),
+}, (t): PgTableExtraConfigValue[] => [
+  unique("settlement_balance_owned_identity").on(t.id, t.intentId, t.accountId),
+  unique("settlement_balance_read_unique").on(t.balanceReadId),
+  foreignKey({ columns: [t.balanceReadId, t.intentId, t.accountId], foreignColumns: [settlementBalanceReads.id, settlementBalanceReads.intentId, settlementBalanceReads.accountId], name: "settlement_balance_owned_capture_fk" }).onDelete("restrict"), index("settlement_balance_intent").on(t.accountId, t.intentId, t.recordedAt),
+  foreignKey({ columns: [t.readId, t.intentId, t.accountId], foreignColumns: [orderRecoveryReads.id, orderRecoveryReads.intentId, orderRecoveryReads.accountId], name: "settlement_balance_owned_read_fk" }).onDelete("restrict"),
+  check("settlement_balance_valid", sql`${t.source}='contract_fixture' AND ${t.intentRevision}>0 AND ${t.available}>=0 AND ${t.held}>=0 AND ${t.total}=${t.available}+${t.held} AND ${t.total}<>'NaN'::numeric AND isfinite(${t.observedAt}) AND isfinite(${t.recordedAt}) AND ${t.recordedAt}>=${t.observedAt}`),
+  pgPolicy("settlement_balances_owner", { for: "all", to: appRole, using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`, withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})` }),
+]).enableRLS();
+export const settlementVerifications = app.table("settlement_verifications", {
+  baselineBalanceId: uuid("baseline_balance_id").notNull(),
+  id: uuid("id").primaryKey().defaultRandom(), accountId: uuid("account_id").notNull(), intentId: uuid("intent_id").notNull(), observationId: uuid("observation_id").notNull(), readId: uuid("read_id").notNull(),
+  operatorId: uuid("operator_id").notNull(), requestKey: uuid("request_key").notNull(), proofHash: varchar("proof_hash", { length: 64 }).notNull(),
+  actualDebit: numeric("actual_debit", { precision: 38, scale: 18 }).notNull(), interveningCredits: numeric("intervening_credits", { precision: 38, scale: 18 }).notNull(), interveningDebits: numeric("intervening_debits", { precision: 38, scale: 18 }).notNull(),
+  references: jsonb("evidence_references").$type<Record<string, string>>().notNull(), method: varchar("method", { length: 16 }).notNull().default("manual"), source: varchar("source", { length: 32 }).notNull(), verifiedAt: timestamp("verified_at", { withTimezone: true }).notNull(),
+}, t => [
+  foreignKey({ columns: [t.baselineBalanceId, t.accountId], foreignColumns: [balanceSnapshots.id, balanceSnapshots.accountId], name: "settlement_verified_baseline_fk" }).onDelete("restrict"),
+  unique("settlement_verification_intent").on(t.intentId), unique("settlement_verification_request").on(t.accountId, t.requestKey),
+  foreignKey({ columns: [t.observationId, t.intentId, t.accountId], foreignColumns: [settlementBalances.id, settlementBalances.intentId, settlementBalances.accountId], name: "settlement_verification_owned_balance_fk" }).onDelete("restrict"),
+  foreignKey({ columns: [t.readId, t.intentId, t.accountId], foreignColumns: [orderRecoveryReads.id, orderRecoveryReads.intentId, orderRecoveryReads.accountId], name: "settlement_verification_owned_read_fk" }).onDelete("restrict"),
+  check("settlement_verification_valid", sql`${t.source}='contract_fixture' AND ${t.method}='manual' AND ${t.proofHash} ~ '^[0-9a-f]{64}$' AND ${t.actualDebit}>=0 AND ${t.interveningCredits}>=0 AND ${t.interveningDebits}>=0 AND ${t.actualDebit}<>'NaN'::numeric AND ${t.interveningCredits}<>'NaN'::numeric AND ${t.interveningDebits}<>'NaN'::numeric AND jsonb_typeof(${t.references})='object' AND octet_length(${t.references}::text)<=2048 AND isfinite(${t.verifiedAt})`),
+  pgPolicy("settlement_verifications_owner", { for: "all", to: appRole, using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`, withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})` }),
+]).enableRLS();
+export const settlementBalanceReads = app.table("settlement_balance_reads", {
+  id: uuid("id").primaryKey().defaultRandom(), accountId: uuid("account_id").notNull(), intentId: uuid("intent_id").notNull(), orderReadId: uuid("order_read_id").notNull(),
+  sequence: bigserial("sequence", { mode: "bigint" }).notNull(), basis: jsonb("basis").$type<import("../../features/orders/maintenance-types").SettlementBasis>().notNull(), startedAt: timestamp("started_at", { withTimezone: true }).notNull(), source: varchar("source", { length: 32 }).notNull(),
+}, (t): PgTableExtraConfigValue[] => [
+  unique("settlement_balance_read_owned_identity").on(t.id, t.intentId, t.accountId), index("settlement_balance_read_sequence").on(t.accountId, t.intentId, t.sequence),
+  foreignKey({ columns: [t.orderReadId, t.intentId, t.accountId], foreignColumns: [orderRecoveryReads.id, orderRecoveryReads.intentId, orderRecoveryReads.accountId], name: "settlement_balance_read_owned_order_fk" }).onDelete("restrict"),
+  check("settlement_balance_read_valid", sql`${t.source}='contract_fixture' AND jsonb_typeof(${t.basis})='object' AND octet_length(${t.basis}::text)<=4096 AND isfinite(${t.startedAt})`),
+  pgPolicy("settlement_balance_reads_owner", { for: "all", to: appRole, using: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})`, withCheck: sql`exists(select 1 from harborline.gateway_accounts a where a.id=${t.accountId} and a.owner_id=${owner})` }),
+]).enableRLS();

@@ -1,0 +1,33 @@
+import { expect, test, vi } from "vitest";
+vi.mock("server-only", () => ({}));
+import { createOrderReconciler } from "../src/features/orders/reconcile.server";
+import { createOrderRecoveryAdapter } from "../src/integrations/truemarkets/recovery.server";
+import type { OwnerContext } from "../src/features/identity/access.server";
+import type { createRecoveryRepository } from "../src/features/orders/recovery-repository.server";
+test("an aborted worker never persists a late transport response", async () => {
+  const controller = new AbortController();
+  let release!: (v: unknown) => void, entered!: () => void, recorded = 0;
+  const started = new Promise<void>(r => { entered = r; }), pending = new Promise(r => { release = r; });
+  const repository = { async begin() { return { id: "read", providerUserId: "33333333-3333-4333-8333-333333333333", providerOrderId: "fixture_order" }; }, async record() { recorded++; }, async current() { } } as unknown as ReturnType<typeof createRecoveryRepository>;
+  const service = createOrderReconciler({ source: "contract_fixture", repository, adapter: createOrderRecoveryAdapter({ async request() { entered(); return pending; } }, "contract_fixture") });
+  const promise = service.reconcileOrder({} as OwnerContext, "intent", { signal: controller.signal });
+  await started;
+  controller.abort();
+  release({ status: "complete" });
+  await expect(promise).rejects.toMatchObject({ code: "unavailable" });
+  expect(recorded).toBe(0);
+});
+test("an aborted settlement balance response never reaches persistence", async () => {
+  const { createSettlementObserver } = await import("../src/features/orders/settlement.server");
+  const controller = new AbortController();
+  let release!: (v: unknown) => void, entered!: () => void, recorded = 0;
+  const started = new Promise<void>(r => { entered = r; }), pending = new Promise(r => { release = r; });
+  const repository = { async beginBalanceRead() { return { providerUserId: "33333333-3333-4333-8333-333333333333", balanceStartedAt: new Date().toISOString() }; }, async recordBalance() { recorded++; return { id: "hidden" }; }, async clear() { } } as unknown as ReturnType<typeof import("../src/features/orders/settlement-repository.server").createSettlementRepository>;
+  const observer = createSettlementObserver({ source: "contract_fixture", repository, clock: () => new Date(), transport: { async request(_method, _path, options) { expect(options.signal).toBe(controller.signal); entered(); return pending; } } });
+  const result = observer.observe({} as OwnerContext, "intent", controller.signal);
+  await started;
+  controller.abort();
+  release({ private: "late" });
+  await expect(result).rejects.toMatchObject({ code: "unavailable" });
+  expect(recorded).toBe(0);
+});

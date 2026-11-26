@@ -1237,6 +1237,7 @@ The phase letters here describe review batches; the original numbered schedule i
 #### HL-26 — `feat(orders): schedule reconciliation and verify settlement`
 
 - **Branch / labels:** `feat/hl-26-settlement-workers`; `type:feature`, `area:orders`, `area:data`.
+- **Local implementation:** fixture-only owned leases/backoff with durable fair priority, capture-fenced read workers, a protected but runtime-disabled endpoint, separate settlement balance evidence and audited operator clearance with an atomic planning baseline are implemented locally. Conflicts and unproven automatic settlement remain blocked; no live cron/provider/operator activation. See [worker and settlement decisions](./docs/order-settlement.md); publication and final verification are tracked separately.
 - **Prerequisite:** HL-25 and the settlement evidence decision from HL-06.
 - **Scope:** due-work leasing, internal secret-protected route, scheduled read-only polling, backoff, settlement evidence and operator manual-reconciliation command; configure cron only in the intended environment.
 - **Boundary:** automatic slot release stays off until the provider evidence contract is proven; elapsed time or two equal balances alone do not prove settlement. Manual clearance is audited and cannot execute trades.

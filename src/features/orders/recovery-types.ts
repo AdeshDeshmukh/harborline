@@ -39,7 +39,7 @@ export type RecoveryView = Readonly<{
   } | null;
   requiresManualReview: boolean;
   slotHeld: boolean;
-  settlementVerified: false;
+  settlementVerified: boolean;
   canExecute: false;
   source: "contract_fixture";
 }>;
