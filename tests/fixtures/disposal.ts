@@ -1,0 +1,11 @@
+import type {DisposalBinding,DisposalBalance,DisposalQuote} from "../../src/features/orders/disposal-types";
+import {SOLANA_USDC_MINT} from "../../src/integrations/truemarkets/read-types";
+export const time="2026-11-26T12:00:00.000Z";
+export const binding:DisposalBinding={ownerId:"11111111-1111-4111-8111-111111111111",accountId:"22222222-2222-4222-8222-222222222222",providerUserId:"33333333-3333-4333-8333-333333333333",intentId:"44444444-4444-4444-8444-444444444444",generation:1,policyRevision:2,assetId:"55555555-5555-4555-8555-555555555555",assetAddress:"So11111111111111111111111111111111111111112",cashId:"66666666-6666-4666-8666-666666666666",baseDecimals:8};
+export const request={assetId:binding.assetId,baseQuantity:"0.5"};
+export const holding:DisposalBalance={source:"contract_fixture",binding,assetId:binding.assetId,address:binding.assetAddress,chain:"solana",venue:"defi",decimals:8,available:"1",held:"0",total:"1",observedAt:time};
+export const quote:DisposalQuote={source:"contract_fixture",binding,contractRef:"fixture:sale-v1",providerOrderId:"fixture-sale-order",side:"sell",qtyUnit:"base",requestedBase:"0.5",maximumBaseDebit:"0.5",expectedGrossQuote:"100",quotedFeeQuote:"0.5",maximumFeeQuote:"1",minimumNetQuote:"98",feeAssetId:binding.cashId,feeTreatment:"deducted_from_proceeds",observedAt:time,expiresAt:"2026-11-26T12:00:20.000Z",payloadDigests:["a".repeat(64)]};
+export function at(ms=0){return new Date(Date.parse(time)+ms);}
+export function cash(available:string,ms=0):DisposalBalance{return {source:"contract_fixture",binding,assetId:binding.cashId,address:SOLANA_USDC_MINT,chain:"solana",venue:"defi",decimals:6,available,held:"0",total:available,observedAt:at(ms).toISOString()};}
+export function actual(){return {source:"contract_fixture",binding,providerOrderId:quote.providerOrderId,status:"complete",filledBase:"0.5",remainingBase:"0",grossQuote:"100",feeQuote:"0.5",averagePriceQuote:"200",observedAt:at(1000).toISOString()};}
+export function proof(){return {source:"contract_fixture",binding,providerOrderId:quote.providerOrderId,cashBefore:cash("2000"),cashAfter:cash("2099.5",1000),stockAfter:{...holding,available:"0.5",total:"0.5",observedAt:at(1000).toISOString()},otherBaseCredits:"0",otherBaseDebits:"0",otherQuoteCredits:"0",otherQuoteDebits:"0"};}
