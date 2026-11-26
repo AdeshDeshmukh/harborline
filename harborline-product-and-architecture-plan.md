@@ -1228,6 +1228,7 @@ The phase letters here describe review batches; the original numbered schedule i
 #### HL-25 — `feat(orders): recover uncertain execution outcomes`
 
 - **Branch / labels:** `feat/hl-25-order-recovery`; `type:feature`, `area:orders`.
+- **Local implementation:** explicitly enabled fixture-only owned GET recovery, durable read tickets/observations, revision and mapping fences, actual fill/fee projection, terminal/manual protection and atomic redacted audit are implemented locally. No HTTP/UI/cron, provider activation, resends or slot release. See [recovery decisions, evidence and limits](./docs/order-recovery.md); publication and final verification are tracked separately.
 - **Prerequisite:** HL-24.
 - **Scope:** read-only `reconcileOrder`, provider status normalization and durable recovery after process/browser restart; handle delayed, failed, complete, partial, and already-submitted observations.
 - **Boundary:** lack of evidence never becomes success/failure by assumption; recovery never resubmits an execute request.

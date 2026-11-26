@@ -9,6 +9,7 @@ import {projectStoredReview} from "./reviews.server";
 import {localDateAt,validateTimezone} from "../planning/validation";
 import {calculateAllowance} from "../planning/calculate-allowance";
 import {compareAmounts,parseAmount,subtractAmounts} from "../planning/money";
+import {isTerminalState,terminalOutcome} from "./outcome-history.server";
 type Tx=Parameters<Parameters<ReturnType<typeof getDatabase>["withOwner"]>[1]>[0];
 type Account=typeof gatewayAccounts.$inferSelect;type Intent=typeof investmentIntents.$inferSelect;
 export function createExecutionRepository(database:ReturnType<typeof getDatabase>,options:{clock:()=>Date;fixtureMode?:boolean;fixtureExecutionEnabled?:boolean}){
@@ -75,12 +76,20 @@ export function createExecutionRepository(database:ReturnType<typeof getDatabase
     async finish(ctx:OwnerContext,value:unknown,attemptId:string,status:"complete"|"pending"|"failed"|"canceled"|null){return transaction(ctx,value,async(tx,a,i,c)=>{
       const {attempt}=await approved(tx,ctx,i,c),[dispatch]=await tx.select().from(executionDispatches).where(and(eq(executionDispatches.attemptId,attempt.id),eq(executionDispatches.accountId,a.id)));
       if(attempt.id!==attemptId||!dispatch)throw new ApprovalError("conflict");
-      if(i.state!=="SUBMITTING")return;
       if(a.activeOperationId!==i.id||!i.effectsPossible)throw new ApprovalError("conflict");
-      const state=status===null?"UNKNOWN":({complete:"COMPLETE",pending:"PENDING",failed:"FAILED",canceled:"CANCELED"} as const)[status],now=time();
-      const changed=await tx.update(investmentIntents).set({state,revision:i.revision+1,updatedAt:now}).where(and(eq(investmentIntents.id,i.id),eq(investmentIntents.revision,i.revision),eq(investmentIntents.state,"SUBMITTING"))).returning({id:investmentIntents.id});
-      if(changed.length!==1)throw new ApprovalError("conflict");
-      await tx.insert(auditEvents).values({accountId:a.id,intentId:i.id,actorId:ctx.ownerId,eventType:"execution_observed",metadata:{attemptId,providerStatus:status,source:"contract_fixture"},occurredAt:now});
+      if(!["SUBMITTING","PENDING","UNKNOWN","MANUAL_REVIEW","COMPLETE","FAILED","CANCELED"].includes(i.state))throw new ApprovalError("conflict");
+      const [same]=await tx.select({id:auditEvents.id}).from(auditEvents).where(and(eq(auditEvents.accountId,a.id),eq(auditEvents.intentId,i.id),eq(auditEvents.eventType,"execution_observed"),sql`${auditEvents.metadata}->>'attemptId'=${attemptId}`,sql`${auditEvents.metadata}->>'providerStatus' IS NOT DISTINCT FROM ${status}`)).limit(1);
+      if(same)return;
+      const mapped=status===null?null:({complete:"COMPLETE",pending:"PENDING",failed:"FAILED",canceled:"CANCELED"} as const)[status],terminal=await terminalOutcome(tx,a.id,i.id,i.state),now=time();
+      const disposition=terminal&&(mapped===null||mapped!==terminal)?mapped&&isTerminalState(mapped)?"conflict":"ignored":"applied";
+      // A GET may finish before the original POST. Persist its definitive reply
+      // without regressing terminal/manual state or treating a timeout as failure.
+      const state=i.state==="MANUAL_REVIEW"?i.state:disposition==="applied"&&mapped?mapped:status===null&&i.state==="SUBMITTING"?"UNKNOWN":i.state;
+      if(disposition!=="ignored"){
+        const changed=await tx.update(investmentIntents).set({state,revision:i.revision+1,updatedAt:now}).where(and(eq(investmentIntents.id,i.id),eq(investmentIntents.revision,i.revision),eq(investmentIntents.state,i.state))).returning({id:investmentIntents.id});
+        if(changed.length!==1)throw new ApprovalError("conflict");
+      }
+      await tx.insert(auditEvents).values({accountId:a.id,intentId:i.id,actorId:ctx.ownerId,eventType:"execution_observed",metadata:{attemptId,providerStatus:status,disposition,source:"contract_fixture"},occurredAt:now});
     });},
   };
 }
