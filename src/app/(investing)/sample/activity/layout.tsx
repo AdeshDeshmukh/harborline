@@ -1,0 +1,4 @@
+import Link from "next/link";
+export default function SampleActivityLayout({children}:{children:React.ReactNode}){
+ return <>{children}<nav aria-label="Fictional activity examples" className="mt-5 flex flex-wrap gap-x-6 gap-y-2 border-t border-slate-800 pt-5 text-sm text-cyan-200">{[["All examples","/sample/activity"],["In progress","pending"],["Unknown outcome","unknown"],["Complete, unverified","complete"],["Manually verified","verified"],["Partial failure","partial-failed"],["Needs review","review"],["Empty activity","empty"]].map(([label,path])=><Link key={path} href={path.startsWith("/")?path:"/sample/activity/"+path} prefetch={false} className="inline-flex min-h-11 items-center underline underline-offset-4">{label}</Link>)}</nav></>;
+}
