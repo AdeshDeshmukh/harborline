@@ -1250,6 +1250,7 @@ The phase letters here describe review batches; the original numbered schedule i
 - **Scope:** owner-scoped activity/status endpoints and pages; receipt joins approved planning revision with actual fill/fee evidence and timestamps. Clearly explain pending, unknown, and balance-verification-required outcomes.
 - **Boundary:** no estimated quantities presented as fills, fictional savings, or organization-wide feed exposed to a customer.
 - **Acceptance:** receipt survives return visit; cross-user status/history/receipt access fails; fixture states have accurate text and recovery paths; unsafe explorer URLs are rejected.
+- **Local implementation note:** saved-data reader, authenticated routes and shared fictional examples are documented in [order activity](docs/order-activity.md). No transaction link is invented when chain metadata is absent; unknown URL extensions are dropped. Live/authenticated deployment evidence remains pending HL-31.
 
 ### 18.10 Phase G — Pilot and product finish
 
