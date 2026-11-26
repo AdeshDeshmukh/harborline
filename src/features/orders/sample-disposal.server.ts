@@ -1,0 +1,8 @@
+import "server-only";
+import type {OrderRecord} from "./activity-types";
+export function sampleDisposal(name:"sale-complete"|"sale-partial"):OrderRecord{
+ const partial=name==="sale-partial",at="2026-11-25T12:00:05.000Z";
+ return {id:name,operationKind:"sell",state:partial?"FAILED":"COMPLETE",source:"contract_fixture",requestedQuantity:"0.5",quantityUnit:"base",assetId:"Fictional sample asset",assetLabel:"SAMPLE · fictional tokenized stock",quoteCurrency:"USDC",createdAt:at,updatedAt:at,reservationHeld:partial,requiresReview:false,settlementVerified:!partial,canExecute:false,providerOrderId:"sample-sale-"+name,approval:null,settlement:null,chainReference:null,
+  actual:{providerStatus:partial?"failed":"complete",filledBase:partial?"0.2":"0.5",remainingBase:partial?"0.3":"0",averagePriceQuote:"200",feeQuote:partial?"0.2":"0.5",partial,recordedAt:at},latestCheck:{at,kind:"observed",disposition:"applied"},
+  sale:{review:{requestedBase:"0.5",maximumBaseDebit:"0.5",expectedGrossQuote:"100",quotedFeeQuote:"0.5",maximumFeeQuote:"1",expectedNetQuote:"99.5",minimumNetQuote:"98",createdAt:at,expiresAt:at,revision:1},approval:{approvedAt:at,stockBefore:"1",cashBefore:"0"},actualGrossQuote:partial?"40":"100",actualNetQuote:partial?"39.8":"99.5",settlement:partial?null:{kind:"reconciled_fixture",source:"contract_fixture",status:"complete",partial:false,actualBaseDebit:"0.5",remainingBase:"0",actualGrossQuote:"100",actualFeeQuote:"0.5",actualNetQuoteCredit:"99.5",stockTotalBefore:"1",stockTotalAfter:"0.5",cashBefore:"0",cashAfter:"99.5",otherBaseCredits:"0",otherBaseDebits:"0",otherQuoteCredits:"0",otherQuoteDebits:"0",recordedAt:at,verifiedAt:at,balanceObservedAt:at,canRelease:false,canExecute:false}}};
+}

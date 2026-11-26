@@ -1,0 +1,26 @@
+import {expect,test,vi} from "vitest";
+vi.mock("server-only",()=>({}));
+import {randomUUID} from "node:crypto";
+import {newSaleAccount,intents,wallet,prepared,admin,db,clock,vault,assets} from "../fixtures/disposal-database";
+import {createDisposalPreparationService} from "../../src/features/orders/disposal-service.server";
+import {createDisposalExecutionRepository,createDisposalExecutionPort} from "../../src/features/orders/disposal-execution.server";
+import {createSignedApprovalService} from "../../src/features/orders/execute.server";
+import {createEncryptedSigner} from "../../src/features/accounts/key-store.server";
+import {stampEncryptedSigner} from "../../src/features/accounts/signer.server";
+import {createOrderExecutionAdapter} from "../../src/integrations/truemarkets/execution.server";
+import {createOrderRecoveryAdapter} from "../../src/integrations/truemarkets/recovery.server";
+import {createDisposalRecovery} from "../../src/features/orders/disposal-recovery.server";
+import {createDisposalSettlement} from "../../src/features/orders/disposal-settlement.server";
+import {createActivityReader} from "../../src/features/orders/activity-reader.server";
+test("fixture sale journey joins preparation, shared signed approval, bound GET and partial canceled clearance",async()=>{
+ const d=await newSaleAccount(),key=Buffer.alloc(32,6),signer=createEncryptedSigner(d.owner.accountId,key,1);await admin.query("UPDATE harborline.gateway_accounts SET public_key=$2 WHERE id=$1",[d.owner.accountId,signer.publicKey]);
+ const p=await createDisposalPreparationService({source:"contract_fixture",...d,intents,wallet:async(_ctx,t)=>wallet(t),prepare:async(_ctx,t)=>({kind:"prepared",...prepared(t)})}).prepare(d.owner,d.request);if(!p.review)throw new Error("fictional review missing");
+ const command={intentId:p.intentId,reviewRevision:p.review.revision,termsHash:p.review.termsHash,acknowledged:true},execution=createDisposalExecutionRepository(d.store);let sends=0,signs=0;
+ const service=createSignedApprovalService({source:"contract_fixture",approvals:d.approvals,execution:createDisposalExecutionPort(execution,d.reads,async(_ctx,t)=>wallet(t)),vault,signer:{async stamp(ctx,publicKey,payloads){signs++;return stampEncryptedSigner(ctx.accountId,signer,new Map([[1,key]]),publicKey,payloads);}},adapter:createOrderExecutionAdapter({async request(){sends++;return {status:"pending"};}}),refreshFixtureEvidence:async ctx=>{const t=await d.reads.begin(ctx,p.intentId,"approval");await d.reads.record(ctx,t.id,wallet(t));return {readId:t.id};}});
+ expect(await service.approve(d.owner,command)).toMatchObject({accepted:true,state:"PENDING",canExecute:false});await service.approve(d.owner,command);expect([sends,signs]).toEqual([1,1]);
+ const ticket=await d.reads.begin(d.owner,p.intentId,"order"),transport=vi.fn(async(method,path,options)=>{expect(method).toBe("GET");expect(path).toBe("/v1/gateway/orders/"+ticket.providerOrderId);expect(options.userId).toBe(ticket.binding.providerUserId);return {order_id:ticket.providerOrderId,asset_id:assets.stock.id,qty:"0.5",qty_unit:"base",side:"sell",type:"market",chain:"solana",venue:"defi",quote_asset:"USDC",fee_asset:assets.cash.id,status:"canceled",executed_qty:"0.2",leaves_qty:"0.3",executed_vwap:"200",fee:"0.2"};});
+ const reply=await createOrderRecoveryAdapter({request:transport},"contract_fixture").read({providerUserId:ticket.binding.providerUserId,providerOrderId:ticket.providerOrderId!});expect(await createDisposalRecovery(d.store).record(d.owner,ticket.id,reply)).toMatchObject({state:"CANCELED",slotHeld:true});expect(transport).toHaveBeenCalledOnce();
+ const post=await d.reads.begin(d.owner,p.intentId,"settlement");await d.reads.record(d.owner,post.id,wallet(post,"0.8","39.8"));
+ expect(await createDisposalSettlement(d.store).clear(d.owner,{intentId:p.intentId,walletReadId:post.id,requestKey:randomUUID(),otherBaseCredits:"0",otherBaseDebits:"0",otherQuoteCredits:"0",otherQuoteDebits:"0",references:{order:"fixture:"+ticket.providerOrderId,balance:"fixture:"+post.id,stock:"fixture:"+post.id,wallet:"fixture:wallet"}})).toMatchObject({released:true,result:{status:"canceled",actualNetQuoteCredit:"39.8"}});
+ expect(await createActivityReader(db,clock).load(d.owner,p.intentId)).toMatchObject({operationKind:"sell",reservationHeld:false,settlementVerified:true,sale:{settlement:{stockTotalAfter:"0.8",cashAfter:"39.8"}}});
+});

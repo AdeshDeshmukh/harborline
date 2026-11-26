@@ -1,7 +1,7 @@
 import Decimal from "decimal.js";
 import {addAmounts,compareAmounts,parseAmount,subtractAmounts} from "../planning/money";
 import type {DisposalActual,DisposalBinding,DisposalProof,DisposalReconciliation,DisposalReview} from "./disposal-types";
-import {normalizeDisposalReview} from "./disposal-review";
+import {normalizeDisposalReview,revalidateDisposalReview} from "./disposal-review";
 import {bounded,fail,fixture,fresh,instant,matchBinding,normalizeDisposalBalance,orderId,quantity,record,time,tokenQuantity} from "./disposal-validation";
 const Exact=Decimal.clone({precision:80,rounding:Decimal.ROUND_DOWN,minE:-1000,maxE:1000});
 
@@ -33,22 +33,30 @@ function economics(review:DisposalReview,actual:DisposalActual) {
   return {filled,remaining,gross,fee,net};
 }
 /** Fixture mathematics only: no authentication, finality proof or reservation release. */
-export function reconcileDisposalFixture(reviewValue:unknown,observationValue:unknown,proofValue:unknown,now:Date):DisposalReconciliation {
+export function reconcileDisposalFixture(reviewValue:unknown,observationValue:unknown,proofValue:unknown,now:Date,approvedBaseline?:unknown):DisposalReconciliation {
   return bounded(()=>{
     const review=normalizeDisposalReview(reviewValue),binding=review.binding,actual=normalizeActual(observationValue,binding),proof=normalizeProof(proofValue,binding),at=time(now);
     if(actual.providerOrderId!==review.quote.providerOrderId||proof.providerOrderId!==actual.providerOrderId)fail();
-    const created=Date.parse(review.createdAt),observed=Date.parse(actual.observedAt);
-    if(created>observed||observed>at)fail("stale_evidence");
-    fresh(proof.cashBefore.observedAt,created);
+    let basisTime=Date.parse(review.createdAt),stockBefore=review.holding;
+    if(approvedBaseline!==undefined){
+      const b=record(approvedBaseline,["approvedAt","holding","cash"]),approvedAt=instant(b.approvedAt);
+      basisTime=Date.parse(approvedAt);stockBefore=normalizeDisposalBalance(b.holding,binding,"stock");
+      const cashBefore=normalizeDisposalBalance(b.cash,binding,"cash");
+      revalidateDisposalReview(review,binding,stockBefore,new Date(approvedAt));
+      if(stockBefore.observedAt!==cashBefore.observedAt||JSON.stringify(cashBefore)!==JSON.stringify(proof.cashBefore))fail("conflict");
+    }
+    const observed=Date.parse(actual.observedAt);
+    if(basisTime>observed||observed>at)fail("stale_evidence");
+    fresh(proof.cashBefore.observedAt,basisTime);
     for(const balance of [proof.cashAfter,proof.stockAfter]){
       if(Date.parse(balance.observedAt)<observed)fail("stale_evidence");
       fresh(balance.observedAt,at);
     }
     if(proof.cashBefore.held!=="0"||proof.cashAfter.held!=="0"||proof.stockAfter.held!=="0")fail("unverified");
     const {filled,remaining,gross,fee,net}=economics(review,actual);
-    const stockAfter=subtractAmounts(addAmounts([parseAmount(review.holding.total),parseAmount(proof.otherBaseCredits)]),addAmounts([filled,parseAmount(proof.otherBaseDebits)]));
+    const stockAfter=subtractAmounts(addAmounts([parseAmount(stockBefore.total),parseAmount(proof.otherBaseCredits)]),addAmounts([filled,parseAmount(proof.otherBaseDebits)]));
     const cashAfter=subtractAmounts(addAmounts([parseAmount(proof.cashBefore.available),net,parseAmount(proof.otherQuoteCredits)]),parseAmount(proof.otherQuoteDebits));
     if(stockAfter!==proof.stockAfter.total||cashAfter!==proof.cashAfter.available)fail("conflict");
-    return Object.freeze({kind:"reconciled_fixture",source:"contract_fixture",status:actual.status,partial:filled!=="0"&&remaining!=="0",actualBaseDebit:filled,remainingBase:remaining,actualGrossQuote:gross,actualFeeQuote:fee,actualNetQuoteCredit:net,stockTotalBefore:review.holding.total,stockTotalAfter:stockAfter,cashBefore:proof.cashBefore.available,cashAfter,otherBaseCredits:proof.otherBaseCredits,otherBaseDebits:proof.otherBaseDebits,otherQuoteCredits:proof.otherQuoteCredits,otherQuoteDebits:proof.otherQuoteDebits,recordedAt:now.toISOString(),canRelease:false,canExecute:false});
+    return Object.freeze({kind:"reconciled_fixture",source:"contract_fixture",status:actual.status,partial:filled!=="0"&&remaining!=="0",actualBaseDebit:filled,remainingBase:remaining,actualGrossQuote:gross,actualFeeQuote:fee,actualNetQuoteCredit:net,stockTotalBefore:stockBefore.total,stockTotalAfter:stockAfter,cashBefore:proof.cashBefore.available,cashAfter,otherBaseCredits:proof.otherBaseCredits,otherBaseDebits:proof.otherBaseDebits,otherQuoteCredits:proof.otherQuoteCredits,otherQuoteDebits:proof.otherQuoteDebits,recordedAt:now.toISOString(),canRelease:false,canExecute:false});
   });
 }

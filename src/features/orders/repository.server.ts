@@ -6,6 +6,7 @@ import {isUuid} from "../../server/env";
 import {parseAmount} from "../planning/money";
 import type {OwnerContext} from "../identity/access.server";
 import {normalizeIntentRequest} from "./request.server";
+import {hasSalePreparationAttempt} from "./sale-preparation-history.server";
 import {canAdvance,cleanupDecision} from "./lifecycle";
 import {IntentStoreError,type IntentState,type IntentView} from "./types";
 type Tx=Parameters<Parameters<ReturnType<typeof getDatabase>["withOwner"]>[1]>[0];
@@ -31,6 +32,7 @@ async function release(tx:Tx,owned:Account,row:Row){
  const rows=await tx.update(gatewayAccounts).set({activeOperationId:null}).where(and(eq(gatewayAccounts.id,owned.id),eq(gatewayAccounts.activeOperationId,row.id))).returning({id:gatewayAccounts.id});
  if(rows.length!==1)throw new IntentStoreError("conflict");
 }
+async function pendingSalePreparation(tx:Tx,row:Row){return row.operationKind==="sell"&&row.state==="PREPARING"&&await hasSalePreparationAttempt(tx,row.accountId,row.id,row.preparationGeneration);}
 function current(owned:Account,row:Row,expected:number){if(row.revision!==expected)throw new IntentStoreError("conflict");if(owned.activeOperationId!==row.id)throw new IntentStoreError("invalid_transition");}
 export function createIntentRepository(database=getDatabase(),options:{fixtureMode?:boolean;clock?:()=>Date}={}){
  const fixtureMode=options.fixtureMode===true,clock=options.clock??(()=>new Date());
@@ -64,7 +66,7 @@ export function createIntentRepository(database=getDatabase(),options:{fixtureMo
   async get(context:OwnerContext,intentId:string){const key=id(intentId);return transaction(context,async tx=>{const owned=await account(tx,context,false);return view(await intent(tx,owned.id,key));});},
   async audit(context:OwnerContext,intentId:string){const key=id(intentId);return transaction(context,async tx=>{const owned=await account(tx,context,false);await intent(tx,owned.id,key);const rows=await tx.select({id:auditEvents.id,eventType:auditEvents.eventType,metadata:auditEvents.metadata,occurredAt:auditEvents.occurredAt}).from(auditEvents).where(and(eq(auditEvents.accountId,owned.id),eq(auditEvents.intentId,key))).orderBy(asc(auditEvents.sequence));return rows.map(row=>Object.freeze({...row,metadata:Object.freeze(row.metadata),occurredAt:row.occurredAt.toISOString()}));});},
   beginPreparation:(context:OwnerContext,intentId:string,expected:number)=>change(context,intentId,expected,async(tx,owned,row,timestamp)=>{
-   current(owned,row,expected);
+   current(owned,row,expected);if(await pendingSalePreparation(tx,row))throw new IntentStoreError("invalid_transition");
    const restart=row.state==="PREPARING"&&row.preparationSafety==="contract_fixture"&&row.preparationLeaseUntil!==null&&row.preparationLeaseUntil<=timestamp;
    if((row.state!=="DRAFT"&&!restart)||row.effectsPossible||row.providerOrderId!==null)throw new IntentStoreError("invalid_transition");
    if(row.policyRevision!==owned.policyRevision)throw new IntentStoreError("stale_calculation");
@@ -77,6 +79,7 @@ export function createIntentRepository(database=getDatabase(),options:{fixtureMo
    if(typeof command.providerOrderId!=="string"||!/^[A-Za-z0-9_-]{1,128}$/.test(command.providerOrderId)||typeof command.reviewExpiresAt!=="string"||!Number.isFinite(Date.parse(command.reviewExpiresAt))||new Date(command.reviewExpiresAt).toISOString()!==command.reviewExpiresAt||Object.keys(command).length!==5)throw new IntentStoreError("invalid_request");
    return transaction(context,async tx=>{
     const owned=await account(tx,context,true),row=await intent(tx,owned.id,command.id),timestamp=now(),deadline=new Date(command.reviewExpiresAt);
+    if(row.operationKind==="sell")throw new IntentStoreError("invalid_transition");
     if(owned.activeOperationId!==row.id||row.state!=="PREPARING"||row.revision!==command.expectedRevision||row.preparationGeneration!==command.generation||row.preparationLeaseUntil===null||row.preparationLeaseUntil<=timestamp||row.policyRevision!==owned.policyRevision||deadline<=timestamp){
      await audit(tx,context,row,"preparation_response_ignored",{generation:command.generation,providerOrderId:command.providerOrderId},timestamp);return {intent:view(row),accepted:false};
     }
@@ -92,17 +95,18 @@ export function createIntentRepository(database=getDatabase(),options:{fixtureMo
    const updated=await save(tx,row,{state:to,effectsPossible:true},timestamp);await audit(tx,context,updated,"state_advanced",{from:row.state,to},timestamp);return view(updated);
   }),
   cleanup:(context:OwnerContext,intentId:string,expected:number)=>change(context,intentId,expected,async(tx,owned,row,timestamp)=>{
+   if(await pendingSalePreparation(tx,row))return view(row);
    const decision=cleanupDecision(view(row),owned.policyRevision,timestamp);if(!decision)return view(row);
    current(owned,row,expected);const updated=await save(tx,row,{state:decision.state,effectsPossible:row.effectsPossible||!decision.release},timestamp);
    if(decision.release)await release(tx,owned,updated);await audit(tx,context,updated,"cleanup_applied",{from:row.state,to:updated.state,released:decision.release},timestamp);return view(updated);
   }),
   abandon:(context:OwnerContext,intentId:string,expected:number)=>change(context,intentId,expected,async(tx,owned,row,timestamp)=>{
-   current(owned,row,expected);if(row.effectsPossible||!["DRAFT","PREPARING","REVIEW_READY"].includes(row.state))throw new IntentStoreError("invalid_transition");
+   current(owned,row,expected);if(await pendingSalePreparation(tx,row)||row.effectsPossible||!["DRAFT","PREPARING","REVIEW_READY"].includes(row.state))throw new IntentStoreError("invalid_transition");
    const safe=row.state==="DRAFT"||row.preparationSafety==="contract_fixture",updated=await save(tx,row,{state:safe?"ABANDONED":"UNKNOWN",effectsPossible:!safe},timestamp);
    if(safe)await release(tx,owned,updated);await audit(tx,context,updated,"intent_abandoned",{released:safe},timestamp);return view(updated);
   }),
   rejectPreparation:(context:OwnerContext,intentId:string,expected:number)=>change(context,intentId,expected,async(tx,owned,row,timestamp)=>{
-   current(owned,row,expected);if(row.state!=="PREPARING"||row.effectsPossible)throw new IntentStoreError("invalid_transition");
+   current(owned,row,expected);if(await pendingSalePreparation(tx,row)||row.state!=="PREPARING"||row.effectsPossible)throw new IntentStoreError("invalid_transition");
    const safe=row.preparationSafety==="contract_fixture",updated=await save(tx,row,{state:safe?"REJECTED":"UNKNOWN",effectsPossible:!safe},timestamp);
    if(safe)await release(tx,owned,updated);await audit(tx,context,updated,"preparation_rejected",{released:safe},timestamp);return view(updated);
   }),

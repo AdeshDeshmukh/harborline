@@ -1,0 +1,11 @@
+import {expect,test} from "vitest";
+import {normalizeDisposalOrder} from "../src/features/orders/disposal-order-contracts";
+import {DisposalError} from "../src/features/orders/disposal-types";
+import {binding} from "./fixtures/disposal";
+const order={order_id:"sale-order",asset_id:binding.assetId,qty:"0.5",qty_unit:"base",side:"sell",type:"market",chain:"solana",venue:"defi",quote_asset:"USDC",fee_asset:binding.cashId,status:"complete",executed_qty:"0.5",leaves_qty:"0",executed_vwap:"200",fee:"0.5"};
+const normalize=(change:Record<string,unknown>={})=>normalizeDisposalOrder({...order,...change},binding,order.order_id,"0.5");
+test("sale actual gross derives from actual base fill and actual VWAP, not a quote",()=>{expect(normalize()).toMatchObject({providerStatus:"complete",filledBase:"0.5",grossQuote:"100",feeQuote:"0.5",partial:false});});
+test("missing actual fields stay unknown",()=>{expect(normalize({executed_qty:null,leaves_qty:null,executed_vwap:null,fee:null})).toMatchObject({filledBase:null,remainingBase:null,grossQuote:null,averagePriceQuote:null,feeQuote:null});});
+test("zero-filled failed order never persists an indicative price as actual VWAP",()=>{expect(normalize({status:"failed",executed_qty:"0",leaves_qty:"0.5",executed_vwap:"200",fee:"0"})).toMatchObject({averagePriceQuote:null,grossQuote:"0"});});
+test.each([{side:"buy"},{qty_unit:"quote"},{qty:"1"},{asset_id:binding.cashId},{order_id:"other"},{quote_asset:"SOL"},{fee_asset:binding.assetId},{chain:"base"},{venue:"cefi"},{status:"unknown"},{executed_qty:"0.6"},{executed_qty:"0.4"},{leaves_qty:"0.1"},{executed_vwap:"0.000001"},{fee:"-1"},{executed_qty:"0",leaves_qty:"0.5",status:"failed",fee:"0.1"}])("invalid sale actual identity or economics rejects: %j",change=>{expect(()=>normalize(change)).toThrow(DisposalError);});
+test("private and unsafe URL extensions are dropped from the normalized result",()=>{expect(JSON.stringify(normalize({private_key:"PRIVATE_MARKER",explorer_url:"javascript:PRIVATE_MARKER"}))).not.toContain("PRIVATE_MARKER");});

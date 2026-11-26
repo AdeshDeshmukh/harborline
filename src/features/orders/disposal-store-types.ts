@@ -1,0 +1,10 @@
+import type {DisposalBalance,DisposalBinding,DisposalReview} from "./disposal-types";
+import type {ProviderOrderStatus,RecoveryDisposition,RecoveryKind} from "./recovery-types";
+export type SaleVaultBinding=DisposalBinding & Readonly<{operationKind:"sell";holdingReadId:string}>;
+export type StoredSaleTerms=Readonly<{version:2;operationKind:"sell";binding:SaleVaultBinding;review:DisposalReview}>;
+export type SaleReadPurpose="prepare"|"approval"|"send"|"order"|"settlement";
+export type SaleWalletEvidence=Readonly<{source:"contract_fixture";holding:DisposalBalance;cash:DisposalBalance}>;
+export type SaleOrderEvidence=Readonly<{providerStatus:ProviderOrderStatus;filledBase:string|null;remainingBase:string|null;averagePriceQuote:string|null;feeQuote:string|null;grossQuote:string|null;partial:boolean|null}>;
+export type SaleReadTicket=Readonly<{id:string;purpose:SaleReadPurpose;intentId:string;intentRevision:number;generation:number;binding:DisposalBinding;startedAt:string;providerOrderId:string|null;approvalId:string|null;orderReadId:string|null;cashBaselineId:string|null}>;
+export type SaleObservation=Readonly<{kind:RecoveryKind;disposition:RecoveryDisposition;evidence:SaleOrderEvidence|null;recordedAt:string}>;
+export type SaleRecoveryView=Readonly<{intentId:string;state:import("./types").IntentState;evidence:SaleOrderEvidence|null;actualRecordedAt:string|null;latest:Readonly<{kind:RecoveryKind;disposition:RecoveryDisposition;observedAt:string}>|null;requiresManualReview:boolean;slotHeld:boolean;settlementVerified:boolean;canExecute:false;source:"contract_fixture"}>;

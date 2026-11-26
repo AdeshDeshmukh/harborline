@@ -76,6 +76,7 @@ export function createReviewRepository(database:ReturnType<typeof getDatabase>,o
     async reject(context:OwnerContext,input:{intentId:string;expectedRevision:number;generation:number}){
       const command={...input};completion(command);
       return transaction(context,command.intentId,async(tx,account,intent,now)=>{
+        if(intent.operationKind!=="buy"||!intent.calculationId)throw new ReviewError("integration_unverified");
         if(!matches(account,intent,command)||!intent.preparationLeaseUntil||intent.preparationLeaseUntil<=now){await audit(tx,context,intent,"preparation_rejection_ignored",{generation:command.generation},now);return false;}
         if(intent.preparationSafety!=="contract_fixture")throw new ReviewError("integration_unverified");
         const updated=await tx.update(investmentIntents).set({state:"REJECTED",revision:intent.revision+1,updatedAt:now}).where(and(eq(investmentIntents.id,intent.id),eq(investmentIntents.revision,intent.revision))).returning({id:investmentIntents.id});
