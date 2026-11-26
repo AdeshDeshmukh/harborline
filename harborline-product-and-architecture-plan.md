@@ -1261,6 +1261,7 @@ The phase letters here describe review batches; the original numbered schedule i
 - **Scope:** operator-assisted sell review using base units and fresh owned holdings; shared approval/account serialization; `docs/operations.md` for signer recovery, disabling new trades, reconciliation and the verified fund-return procedure.
 - **Boundary:** zero buying allowance does not block a sale; do not add a public transfer API by assumption. Any implemented transfer requires its own bounded review, destination authorization and tests, split into an additional PR if substantial.
 - **Acceptance:** oversized sale, altered destination/terms where relevant, wrong owner and competing operation fail; fixture sale proceeds and receipts reconcile. Document the real exit steps before accepting outside funds.
+- **Approved delivery split:** HL-28A provides fixture sell-review/currentness and dual-asset accounting rules plus the [operations guide](docs/operations.md); see [contract boundaries](docs/disposal-contracts.md). HL-28B adds the durable operator-assisted lifecycle, approval/recovery and receipts. HL-28A alone does not complete this acceptance or verify a live return/recovery procedure.
 
 #### HL-29 — `feat(demo): provide the public sample journey`
 
