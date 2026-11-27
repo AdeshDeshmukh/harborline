@@ -61,3 +61,23 @@ test("a signed-out visitor can change the plan and inspect the original review w
   expect(await context.cookies()).toEqual([]);
   expect(outsideSample).toEqual([]);
 });
+
+for (const width of [360, 1280]) {
+  test(`the sample plan comes before optional examples and receipts offer a return path at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto("/demo");
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("link", { name: "Skip to walkthrough" })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("textbox", { name: "Rent due (USDC)" })).toBeFocused();
+
+    await page.getByRole("button", { name: "Verified receipt" }).press("Enter");
+    await expect(page.getByRole("heading", { level: 1, name: "When cash is verified" })).toBeFocused();
+    await page.getByRole("button", { name: "Back to sample plan" }).press("Enter");
+    await expect(page.getByRole("heading", { level: 1, name: "Invest with room for what’s due." })).toBeFocused();
+    await page.getByRole("button", { name: "Verified receipt" }).press("Enter");
+    await expect(page.getByText("Cash verified manually", { exact: true }).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+  });
+}

@@ -4,16 +4,15 @@ import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "rea
 import { exactDisplayAmount } from "../orders/review-screen";
 import { applyDemoCommitment, demoAllowance, demoCash, demoReviewScenario, startDemo } from "./demo-plan";
 
-const steps = [
-  { id: "plan", label: "Sample plan" },
-  { id: "review", label: "Saved review" },
+const examples = [
   { id: "expired", label: "Expired quote" },
   { id: "rejected", label: "Rejected quote" },
   { id: "unknown", label: "Uncertain order" },
   { id: "verified", label: "Verified receipt" },
 ] as const;
-type Step = (typeof steps)[number]["id"];
-type Views = Readonly<Record<"current" | "changed" | Exclude<Step, "plan" | "review">, ReactNode>>;
+type Example = (typeof examples)[number]["id"];
+type Step = "plan" | "review" | Example;
+type Views = Readonly<Record<"current" | "changed" | Example, ReactNode>>;
 const headings: Record<Step, string> = {
   plan: "Invest with room for what’s due.",
   review: "Check the saved review",
@@ -81,15 +80,7 @@ export function DemoWorkspace({ views }: { views: Views }) {
 
   return (
     <div id="walkthrough" tabIndex={-1} className="py-6 sm:py-9">
-      <nav aria-label="Walkthrough steps" className="flex flex-wrap items-center gap-2">
-        {steps.map(({ id, label }) => (
-          <button key={id} type="button" onClick={() => open(id)} aria-current={id === step ? "step" : undefined}
-            className={secondary + (id === step ? " border-cyan-300 bg-cyan-300/10" : "")}>{label}</button>
-        ))}
-        <button type="button" onClick={reset} className="min-h-11 px-3 text-sm text-slate-300 underline underline-offset-4 hover:text-cyan-200 sm:ml-auto">Restart walkthrough</button>
-      </nav>
-
-      <h1 ref={title} tabIndex={-1} className="mt-8 text-3xl font-semibold tracking-tight sm:text-5xl">{headings[step]}</h1>
+      <h1 ref={title} tabIndex={-1} className="text-3xl font-semibold tracking-tight sm:text-5xl">{headings[step]}</h1>
       <div className={step === "plan" ? "mt-4 text-sm leading-6 text-cyan-200" : "sr-only"} role="status">{notice}</div>
 
       {step === "plan" ? (
@@ -116,7 +107,7 @@ export function DemoWorkspace({ views }: { views: Views }) {
 
             <section aria-labelledby="rent-title" className="rounded-2xl border border-slate-700 bg-slate-900/50 p-5 sm:p-7">
               <h2 id="rent-title" className="text-lg font-semibold">Change a commitment</h2>
-              <p id="rent-hint" className="mt-2 text-sm leading-6 text-slate-300">Try 1500 USDC for rent, then reopen the saved review.</p>
+              <p id="rent-hint" className="mt-2 text-sm leading-6 text-slate-300">Try 1500 USDC for rent, then open the saved review to see what changed.</p>
               <form onSubmit={saveCommitment} noValidate className="mt-5">
                 <label htmlFor="sample-rent" className="block text-sm font-medium">Rent due (USDC)</label>
                 <input id="sample-rent" ref={rentField} type="text" inputMode="decimal" value={rentInput}
@@ -141,9 +132,22 @@ export function DemoWorkspace({ views }: { views: Views }) {
             <p className="max-w-2xl leading-7 text-slate-300">This is a separate fictional order. The examples do not update one another.</p>
           )}
           {views[step === "review" ? demoReviewScenario(plan) : step]}
-          {step === "review" && <button className={secondary} type="button" onClick={() => open("plan")}>Edit sample plan</button>}
+          <button className={secondary} type="button" onClick={() => open("plan")}>
+            {step === "review" ? "Edit sample plan" : "Back to sample plan"}
+          </button>
         </div>
       )}
+
+      <nav aria-label="Quote and order examples" className="mt-8 border-t border-slate-800 pt-5">
+        <h2 className="text-base font-semibold">Explore quote and order examples</h2>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {examples.map(({ id, label }) => (
+            <button key={id} type="button" onClick={() => open(id)} aria-current={id === step ? "step" : undefined}
+              className={secondary + (id === step ? " border-cyan-300 bg-cyan-300/10" : "")}>{label}</button>
+          ))}
+          <button type="button" onClick={reset} className="min-h-11 px-3 text-sm text-slate-300 underline underline-offset-4 hover:text-cyan-200 sm:ml-auto">Restart walkthrough</button>
+        </div>
+      </nav>
     </div>
   );
 }
