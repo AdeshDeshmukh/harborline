@@ -17,8 +17,10 @@ export default function Home() {
         <p className="mt-10 text-sm text-slate-400">
           In development. Trading is not available yet.
         </p>
-        <Link href="/sign-in" prefetch={false} className="mt-8 inline-flex rounded-xl border border-slate-600 px-5 py-3 text-sm font-medium text-cyan-300 hover:border-cyan-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300">Private pilot sign-in</Link>
-        <Link href="/sample/asset" prefetch={false} className="ml-0 mt-4 inline-flex min-h-11 items-center text-sm text-cyan-200 underline underline-offset-4 sm:ml-6">Explore a fictional review</Link>
+        <div className="mt-8 flex flex-wrap gap-4">
+          <Link href="/demo" prefetch={false} className="inline-flex min-h-11 items-center rounded-xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300">Try the sample walkthrough</Link>
+          <Link href="/sign-in" prefetch={false} className="inline-flex min-h-11 items-center rounded-xl border border-slate-600 px-5 py-3 text-sm font-medium text-cyan-300 hover:border-cyan-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300">Private pilot sign-in</Link>
+        </div>
       </section>
     </main>
   );

@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "pnpm test:provider && pnpm test:gateway && pnpm test:db",
     "test:db": "vitest run --config vitest.db.config.mts",
+    "test:browser": "playwright test",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node scripts/migrate-db.mjs",
     "test:gateway": "vitest run",
@@ -28,6 +29,7 @@
     "server-only": "0.0.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "24.19.2",
     "@types/pg": "8.23.1",

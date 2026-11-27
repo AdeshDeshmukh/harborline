@@ -83,3 +83,10 @@ jobs:
 
       - name: Build production application
         run: pnpm build
+
+
+      - name: Install Chromium for browser regression
+        run: pnpm exec playwright install --with-deps --only-shell chromium
+
+      - name: Test the signed-out demo journey
+        run: pnpm test:browser
