@@ -10,12 +10,12 @@ export default function DemoPage() {
   const { current, changed, expired, rejected, unknown, verified } = createDemoFixtures();
 
   return (
-    <main className="investment-ui min-h-screen bg-slate-950 px-4 py-6 text-slate-100 sm:px-8 sm:py-10">
-      <div className="mx-auto max-w-5xl">
-        <a href="#walkthrough" className="sr-only focus:not-sr-only focus:inline-flex focus:min-h-11 focus:items-center focus:text-cyan-200">Skip to walkthrough</a>
-        <header className="flex flex-wrap items-center justify-between gap-x-8 gap-y-2 border-b border-slate-800 pb-4">
-          <Link href="/" prefetch={false} className="inline-flex min-h-11 items-center text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">Harborline</Link>
-          <p className="text-sm font-medium text-amber-200">Sample walkthrough · no real funds</p>
+    <main className="harbor-public">
+      <div className="harbor-shell">
+        <a href="#walkthrough" className="harbor-skip sr-only focus:not-sr-only">Skip to walkthrough</a>
+        <header className="harbor-header">
+          <Link href="/" prefetch={false} className="harbor-wordmark">Harborline</Link>
+          <p className="harbor-sample-label">Sample walkthrough · no real funds</p>
         </header>
         <DemoWorkspace views={{
           current: <ReviewContent screen={current} embedded />,

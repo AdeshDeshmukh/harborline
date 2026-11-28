@@ -2,7 +2,8 @@
 
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { exactDisplayAmount } from "../orders/review-screen";
-import { applyDemoCommitment, demoAllowance, demoCash, demoReviewScenario, startDemo } from "./demo-plan";
+import { CashBreakdown } from "./cash-breakdown";
+import { applyDemoCommitment, demoAllowance, demoReviewScenario, startDemo } from "./demo-plan";
 
 const examples = [
   { id: "expired", label: "Expired quote" },
@@ -21,10 +22,9 @@ const headings: Record<Step, string> = {
   unknown: "When an order is uncertain",
   verified: "When cash is verified",
 };
-const primary = "inline-flex min-h-11 items-center justify-center rounded-xl bg-cyan-300 px-4 py-2 text-sm font-semibold text-slate-950 hover:bg-cyan-200";
-const secondary = "inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-600 px-4 py-2 text-sm font-medium text-cyan-200 hover:border-cyan-300";
 const amount = (value: string) => exactDisplayAmount(value) + " USDC";
 const initialAllowance = demoAllowance(startDemo()).debitBudget;
+const exampleRent = "1500";
 
 export function DemoWorkspace({ views }: { views: Views }) {
   const [step, setStep] = useState<Step>("plan");
@@ -36,7 +36,7 @@ export function DemoWorkspace({ views }: { views: Views }) {
   const rentField = useRef<HTMLInputElement>(null);
   const focusRequested = useRef(false);
   const allowance = demoAllowance(plan);
-  const changed = demoReviewScenario(plan) === "changed";
+  const reviewScenario = demoReviewScenario(plan);
 
   useEffect(() => {
     if (!focusRequested.current) return;
@@ -50,10 +50,9 @@ export function DemoWorkspace({ views }: { views: Views }) {
     setStep(next);
   }
 
-  function saveCommitment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  function applyRent(value: string) {
     try {
-      const updated = applyDemoCommitment(plan, rentInput);
+      const updated = applyDemoCommitment(plan, value);
       const nextAllowance = demoAllowance(updated);
       setPlan(updated);
       setRentInput(updated.rent);
@@ -68,6 +67,11 @@ export function DemoWorkspace({ views }: { views: Views }) {
     }
   }
 
+  function saveCommitment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    applyRent(rentInput);
+  }
+
   function reset() {
     const initial = startDemo();
     setPlan(initial);
@@ -79,75 +83,73 @@ export function DemoWorkspace({ views }: { views: Views }) {
   }
 
   return (
-    <div id="walkthrough" tabIndex={-1} className="py-6 sm:py-9">
-      <h1 ref={title} tabIndex={-1} className="text-3xl font-semibold tracking-tight sm:text-5xl">{headings[step]}</h1>
-      <div className={step === "plan" ? "mt-4 text-sm leading-6 text-cyan-200" : "sr-only"} role="status">{notice}</div>
+    <div id="walkthrough" tabIndex={-1} className="harbor-workspace">
+      <h1 ref={title} tabIndex={-1} className="harbor-workspace-title">{headings[step]}</h1>
 
       {step === "plan" ? (
         <>
-          <p className="mt-4 max-w-2xl leading-7 text-slate-300">See how rent and a personal buffer shape what you can set aside to invest.</p>
-          <div className="mt-7 grid gap-4 md:grid-cols-2">
-            <section aria-labelledby="allowance-title" className="min-w-0 rounded-2xl border border-cyan-400/40 bg-slate-900 p-5 sm:p-7">
-              <h2 id="allowance-title" className="text-sm font-medium text-slate-300">Sample investing allowance</h2>
-              <p className="mt-2 break-words text-3xl font-semibold tabular-nums text-cyan-200 sm:text-4xl">{amount(allowance.debitBudget)}</p>
-              <dl className="mt-5 divide-y divide-slate-800 text-sm">
-                {([
-                  ["Sample cash", demoCash],
-                  ["Set aside for rent", allowance.commitmentsTotal],
-                  ["Personal buffer", allowance.additionalBuffer],
-                ] as const).map(([label, value]) => (
-                  <div key={label} className="flex flex-wrap justify-between gap-x-4 gap-y-1 py-3">
-                    <dt className="text-slate-400">{label}</dt>
-                    <dd className="min-w-0 break-words tabular-nums">{amount(value)}</dd>
-                  </div>
-                ))}
-              </dl>
-              {allowance.shortfall !== "0" && <p className="mt-2 break-words text-sm text-amber-200">Your sample cash falls short by {amount(allowance.shortfall)}.</p>}
-            </section>
-
-            <section aria-labelledby="rent-title" className="rounded-2xl border border-slate-700 bg-slate-900/50 p-5 sm:p-7">
-              <h2 id="rent-title" className="text-lg font-semibold">Change a commitment</h2>
-              <p id="rent-hint" className="mt-2 text-sm leading-6 text-slate-300">Try 1500 USDC for rent, then open the saved review to see what changed.</p>
-              <form onSubmit={saveCommitment} noValidate className="mt-5">
-                <label htmlFor="sample-rent" className="block text-sm font-medium">Rent due (USDC)</label>
+          <p className="harbor-workspace-intro">Change the sample rent, then see what that means for a saved investment review.</p>
+          <div className="harbor-plan">
+            <CashBreakdown allowance={allowance} />
+            <section aria-labelledby="rent-title" className="harbor-controls">
+              <h2 id="rent-title">Change a commitment</h2>
+              <p id="rent-hint">Try a higher rent or enter your own amount.</p>
+              <form onSubmit={saveCommitment} noValidate>
+                <label htmlFor="sample-rent">Rent due (USDC)</label>
                 <input id="sample-rent" ref={rentField} type="text" inputMode="decimal" value={rentInput}
                   onChange={event => { setRentInput(event.target.value); setError(""); }}
                   aria-invalid={!!error} aria-describedby={error ? "rent-hint rent-error" : "rent-hint"}
-                  className="mt-2 min-h-11 w-full rounded-xl border border-slate-500 bg-slate-950 px-3 text-slate-100 tabular-nums" />
-                {error && <p id="rent-error" role="alert" className="mt-2 text-sm leading-6 text-rose-200">{error}</p>}
-                <button className={primary + " mt-4"} type="submit">Save sample commitment</button>
+                  className="harbor-rent-input" />
+                {error && <p id="rent-error" role="alert" className="harbor-input-error">{error}</p>}
+                <div className="harbor-form-actions">
+                  <button className="harbor-button" type="submit">Save sample commitment</button>
+                  <button className="harbor-button harbor-preset" type="button" onClick={() => applyRent(exampleRent)}>
+                    Try {exactDisplayAmount(exampleRent, 0)} USDC rent
+                  </button>
+                </div>
               </form>
+              <p className="harbor-notice" role="status">{notice}</p>
+              <button className="harbor-button harbor-button-primary harbor-review-link" type="button" onClick={() => open("review")}>
+                Open saved review <span aria-hidden="true">→</span>
+              </button>
             </section>
           </div>
-          <button className={secondary + " mt-5"} type="button" onClick={() => open("review")}>Open saved review</button>
         </>
       ) : (
-        <div className="mt-5 space-y-5">
-          {step === "review" && changed && (
-            <p className="rounded-2xl border border-cyan-400/40 p-4 leading-7 text-cyan-100">
-              Current sample allowance is <strong>{amount(allowance.debitBudget)}</strong>. The saved review used the earlier {amount(initialAllowance)} allowance.
-            </p>
+        <div className="harbor-saved-view">
+          {step === "review" && reviewScenario === "changed" && (
+            <section aria-labelledby="harbor-comparison-title" className="harbor-comparison">
+              <h2 id="harbor-comparison-title">Sample allowance comparison</h2>
+              <dl>
+                <div><dt>When reviewed</dt><dd>{amount(initialAllowance)}</dd></div>
+                <div><dt>After the change</dt><dd>{amount(allowance.debitBudget)}</dd></div>
+              </dl>
+              <p>Rent changed after this review. A new review would be needed before investing. The original terms are shown below.</p>
+            </section>
           )}
           {(step === "unknown" || step === "verified") && (
-            <p className="max-w-2xl leading-7 text-slate-300">This is a separate fictional order. The examples do not update one another.</p>
+            <p className="harbor-workspace-intro">This is a separate fictional order. The examples do not update one another.</p>
           )}
-          {views[step === "review" ? demoReviewScenario(plan) : step]}
-          <button className={secondary} type="button" onClick={() => open("plan")}>
+          <button className="harbor-button" type="button" onClick={() => open("plan")}>
+            <span aria-hidden="true">←</span>
             {step === "review" ? "Edit sample plan" : "Back to sample plan"}
           </button>
+          <div className="harbor-record">{views[step === "review" ? reviewScenario : step]}</div>
         </div>
       )}
 
-      <nav aria-label="Quote and order examples" className="mt-8 border-t border-slate-800 pt-5">
-        <h2 className="text-base font-semibold">Explore quote and order examples</h2>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          {examples.map(({ id, label }) => (
-            <button key={id} type="button" onClick={() => open(id)} aria-current={id === step ? "step" : undefined}
-              className={secondary + (id === step ? " border-cyan-300 bg-cyan-300/10" : "")}>{label}</button>
-          ))}
-          <button type="button" onClick={reset} className="min-h-11 px-3 text-sm text-slate-300 underline underline-offset-4 hover:text-cyan-200 sm:ml-auto">Restart walkthrough</button>
-        </div>
-      </nav>
+      <footer className="harbor-example-footer">
+        <details>
+          <summary>Explore quote and order examples</summary>
+          <nav aria-label="Quote and order examples">
+            {examples.map(({ id, label }) => (
+              <button key={id} type="button" onClick={() => open(id)} aria-current={id === step ? "step" : undefined}
+                className="harbor-button">{label}</button>
+            ))}
+          </nav>
+        </details>
+        <button type="button" onClick={reset} className="harbor-link">Restart walkthrough</button>
+      </footer>
     </div>
   );
 }

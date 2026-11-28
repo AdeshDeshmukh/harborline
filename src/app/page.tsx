@@ -1,27 +1,30 @@
 import Link from "next/link";
+import { CashBreakdown } from "../features/demo/cash-breakdown";
+import { demoAllowance, startDemo } from "../features/demo/demo-plan";
+
+export const metadata = {
+  description: "See how rent and a personal buffer shape what you can set aside to invest. Try Harborline with fictional USDC amounts.",
+};
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-950 px-6 text-slate-50">
-      <section className="w-full max-w-3xl py-24">
-        <p className="mb-6 text-sm font-semibold uppercase tracking-[0.24em] text-cyan-300">
-          Harborline
-        </p>
-        <h1 className="max-w-2xl text-5xl font-semibold tracking-tight sm:text-7xl">
-          Invest with room to breathe.
-        </h1>
-        <p className="mt-8 max-w-2xl text-lg leading-8 text-slate-300 sm:text-xl">
-          Understand what remains after upcoming commitments and a personal
-          buffer, then explicitly approve an investment through True Markets.
-        </p>
-        <p className="mt-10 text-sm text-slate-400">
-          In development. Trading is not available yet.
-        </p>
-        <div className="mt-8 flex flex-wrap gap-4">
-          <Link href="/demo" prefetch={false} className="inline-flex min-h-11 items-center rounded-xl bg-cyan-300 px-5 py-3 text-sm font-semibold text-slate-950 hover:bg-cyan-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300">Try the sample walkthrough</Link>
-          <Link href="/sign-in" prefetch={false} className="inline-flex min-h-11 items-center rounded-xl border border-slate-600 px-5 py-3 text-sm font-medium text-cyan-300 hover:border-cyan-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-cyan-300">Private pilot sign-in</Link>
-        </div>
-      </section>
+    <main className="harbor-public">
+      <div className="harbor-shell">
+        <header className="harbor-header">
+          <span className="harbor-wordmark">Harborline</span>
+          <Link href="/sign-in" prefetch={false} className="harbor-link">Private pilot sign-in</Link>
+        </header>
+        <section className="harbor-hero" aria-labelledby="hero-heading">
+          <div>
+            <p className="harbor-eyebrow">For freelancers paid in USDC</p>
+            <h1 id="hero-heading" className="harbor-hero-title">See what’s left <em>to invest.</em></h1>
+            <p className="harbor-intro">Start with your balance. Account for rent and a buffer you choose. See what remains for investing.</p>
+            <Link href="/demo" prefetch={false} className="harbor-button harbor-button-primary harbor-hero-action">Try the demo <span aria-hidden="true">↗</span></Link>
+            <p className="harbor-note">Fictional amounts · No account needed</p>
+          </div>
+          <CashBreakdown allowance={demoAllowance(startDemo())} />
+        </section>
+      </div>
     </main>
   );
 }

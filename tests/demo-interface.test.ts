@@ -11,7 +11,11 @@ vi.mock("../src/features/identity/session.server", () => { throw new Error("The 
 vi.mock("../src/integrations/truemarkets/client.server", () => { throw new Error("The demo imported the Gateway client"); });
 
 test("the homepage leads to a public, labeled fictional plan with no private action", () => {
-  expect(renderToStaticMarkup(createElement(Home))).toContain('href="/demo"');
+  const home = renderToStaticMarkup(createElement(Home));
+  expect(home).toContain('href="/demo"');
+  expect(home).toContain("See what’s left");
+  expect(home).toContain("Sample investing allowance");
+  expect(home).toContain("300.00");
   const html = renderToStaticMarkup(createElement(DemoPage));
   expect(html).toContain("Sample walkthrough · no real funds");
   expect(html).toContain("300.00");
